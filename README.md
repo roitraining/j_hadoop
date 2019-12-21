@@ -1,1 +1,1 @@
-# jmpc_hadoop
+# j_hadoop
