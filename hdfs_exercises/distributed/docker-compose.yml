@@ -1,0 +1,35 @@
+version: '2'
+
+services:
+  namenode:
+    image: roi/namenode:2.7.5
+    container_name: namenode
+    hostname: namenode
+    ports:
+      - 50070:50070
+    networks:
+      - hadoop
+    environment:
+      CLUSTER_NAME: hdfs-cluster
+
+  secondarynamenode:
+    image: roi/secondarynamenode:2.7.5
+    container_name: secondarynamenode
+    hostname: secondarynamenode
+    networks:
+      - hadoop
+    environment:
+      CLUSTER_NAME: hdfs-cluster
+
+  datanode:
+    image: roi/datanode:2.7.5
+    depends_on:
+      - namenode
+    networks:
+      - hadoop
+    environment:
+      CLUSTER_NAME: hdfs-cluster
+
+networks:
+  hadoop:
+    external: true

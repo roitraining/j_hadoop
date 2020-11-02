@@ -1,0 +1,4 @@
+com/roi/hadoop/wordcount/CountReducer.class
+com/roi/hadoop/wordcount/Main.class
+com/roi/hadoop/wordcount/AlphabetizedPartitioner.class
+com/roi/hadoop/wordcount/WordMapper.class

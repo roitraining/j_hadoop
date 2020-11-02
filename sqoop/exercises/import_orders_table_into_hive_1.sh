@@ -1,0 +1,1 @@
+sqoop import --connect jdbc:mysql://localhost/northwind --username sqoopuser --password sqooppassword --table Orders -m 1 --external-table-dir /user/student/northwind/orders --fields-terminated-by "," --hive-import --hive-overwrite --hive-table orders

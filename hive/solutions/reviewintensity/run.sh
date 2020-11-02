@@ -1,0 +1,1 @@
+hive -f commands.sql

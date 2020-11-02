@@ -1,0 +1,1 @@
+sqoop import -Dorg.apache.sqoop.splitter.allow_text_splitter=true --connect jdbc:mysql://localhost/northwind --username sqoopuser --password sqooppassword --outdir generated_code --warehouse-dir /northwind --table 'AlphabeticalProducts' --split-by CategoryName

@@ -1,5 +1,5 @@
 #! /bin/sh
-mkdir /home/student/mongodb
-nohup mongod --dbpath /home/student/mongodb &>/dev/null &
+[! -d "/class/mongodb"] && mkdir /class/mongodb
+mongod --dbpath /class/mongodb &
 
 

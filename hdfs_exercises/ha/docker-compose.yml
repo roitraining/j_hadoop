@@ -1,0 +1,207 @@
+version: '2'
+
+services:
+  zookeeper1:
+    image: athlinks/confluent-zookeeper
+    hostname: zookeeper1
+    mem_limit: 1024m
+    memswap_limit: 0m
+    environment:
+      - "SERVICE_NAME=zookeeper"
+      - "MYID=1"
+      - "OTHER_NODES=3=zookeeper3,2=zookeeper2"
+    ports:
+      - "2181"
+      - "2888"
+      - "3888"
+
+  zookeeper2:
+    image: athlinks/confluent-zookeeper
+    hostname: zookeeper2
+    mem_limit: 1024m
+    memswap_limit: 0m
+    environment:
+      - "SERVICE_NAME=zookeeper"
+      - "MYID=2"
+      - "OTHER_NODES=1=zookeeper1,3=zookeeper3"
+    ports:
+      - "2181"
+      - "2888"
+      - "3888"
+
+  zookeeper3:
+    image: athlinks/confluent-zookeeper
+    hostname: zookeeper3
+    mem_limit: 1024m
+    memswap_limit: 0m
+    environment:
+      - "SERVICE_NAME=zookeeper"
+      - "MYID=3"
+      - "OTHER_NODES=1=zookeeper1,2=zookeeper2"
+    ports:
+      - "2181"
+      - "2888"
+      - "3888"
+
+  journalnode1:
+    image: athlinks/hadoop:2.7
+    hostname: journalnode1
+    environment:
+      - "SERVICE_NAME=hadoop-journalnode"
+      - "HADOOP_ROLE=JOURNALNODE"
+      - "HADOOP_JOURNALNODE1=journalnode1"
+      - "HADOOP_JOURNALNODE2=journalnode2"
+      - "HADOOP_JOURNALNODE3=journalnode3"
+      - "HADOOP_NAMENODE1=namenode1"
+      - "HADOOP_NAMENODE2=namenode2"
+      - "HADOOP_ZOOKEEPER_CONNECT=zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
+    ports:
+      - "8485:8485"
+    depends_on:
+      - zookeeper1
+      - zookeeper2
+      - zookeeper3
+
+  journalnode2:
+    image: athlinks/hadoop:2.7
+    hostname: journalnode2
+    environment:
+      - "SERVICE_NAME=hadoop-journalnode"
+      - "HADOOP_ROLE=JOURNALNODE"
+      - "HADOOP_JOURNALNODE1=journalnode1"
+      - "HADOOP_JOURNALNODE2=journalnode2"
+      - "HADOOP_JOURNALNODE3=journalnode3"
+      - "HADOOP_NAMENODE1=namenode1"
+      - "HADOOP_NAMENODE2=namenode2"
+      - "HADOOP_ZOOKEEPER_CONNECT=zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
+    ports:
+      - "8485"
+    depends_on:
+      - zookeeper1
+      - zookeeper2
+      - zookeeper3
+
+  journalnode3:
+    image: athlinks/hadoop:2.7
+    hostname: journalnode3
+    environment:
+      - "SERVICE_NAME=hadoop-journalnode"
+      - "HADOOP_ROLE=JOURNALNODE"
+      - "HADOOP_JOURNALNODE1=journalnode1"
+      - "HADOOP_JOURNALNODE2=journalnode2"
+      - "HADOOP_JOURNALNODE3=journalnode3"
+      - "HADOOP_NAMENODE1=namenode1"
+      - "HADOOP_NAMENODE2=namenode2"
+      - "HADOOP_ZOOKEEPER_CONNECT=zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
+    ports:
+      - "8485"
+    depends_on:
+      - zookeeper1
+      - zookeeper2
+      - zookeeper3
+
+  namenode1:
+    image: athlinks/hadoop:2.7
+    hostname: namenode1
+    environment:
+      - "SERVICE_NAME=hadoop-namenode"
+      - "HADOOP_ROLE=NAMENODE1"
+      - "HADOOP_JOURNALNODE1=journalnode1"
+      - "HADOOP_JOURNALNODE2=journalnode2"
+      - "HADOOP_JOURNALNODE3=journalnode3"
+      - "HADOOP_NAMENODE1=namenode1"
+      - "HADOOP_NAMENODE2=namenode2"
+      - "HADOOP_ZOOKEEPER_CONNECT=zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
+    ports:
+      - "50070:50070"
+    depends_on:
+      - zookeeper1
+      - zookeeper2
+      - zookeeper3
+      - journalnode1
+      - journalnode2
+      - journalnode3
+
+  namenode2:
+    image: athlinks/hadoop:2.7
+    hostname: namenode2
+    environment:
+      - "SERVICE_NAME=hadoop-namenode"
+      - "HADOOP_ROLE=NAMENODE2"
+      - "HADOOP_JOURNALNODE1=journalnode1"
+      - "HADOOP_JOURNALNODE2=journalnode2"
+      - "HADOOP_JOURNALNODE3=journalnode3"
+      - "HADOOP_NAMENODE1=namenode1"
+      - "HADOOP_NAMENODE2=namenode2"
+      - "HADOOP_ZOOKEEPER_CONNECT=zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
+    ports:
+      - "50071:50070"
+    depends_on:
+      - zookeeper1
+      - zookeeper2
+      - zookeeper3
+      - journalnode1
+      - journalnode2
+      - journalnode3
+
+  datanode1:
+    image: athlinks/hadoop:2.7
+    hostname: datanode1
+    environment:
+      - "SERVICE_NAME=hadoop-datanode"
+      - "HADOOP_ROLE=DATANODE"
+      - "HADOOP_JOURNALNODE1=journalnode1"
+      - "HADOOP_JOURNALNODE2=journalnode2"
+      - "HADOOP_JOURNALNODE3=journalnode3"
+      - "HADOOP_NAMENODE1=namenode1"
+      - "HADOOP_NAMENODE2=namenode2"
+      - "HADOOP_ZOOKEEPER_CONNECT=zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
+    depends_on:
+      - zookeeper1
+      - zookeeper2
+      - zookeeper3
+      - namenode1
+      - namenode2
+
+  datanode2:
+    image: athlinks/hadoop:2.7
+    hostname: datanode2
+    environment:
+      - "SERVICE_NAME=hadoop-datanode"
+      - "HADOOP_ROLE=DATANODE"
+      - "HADOOP_JOURNALNODE1=journalnode1"
+      - "HADOOP_JOURNALNODE2=journalnode2"
+      - "HADOOP_JOURNALNODE3=journalnode3"
+      - "HADOOP_NAMENODE1=namenode1"
+      - "HADOOP_NAMENODE2=namenode2"
+      - "HADOOP_ZOOKEEPER_CONNECT=zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
+    depends_on:
+      - zookeeper1
+      - zookeeper2
+      - zookeeper3
+      - namenode1
+      - namenode2
+
+  client:
+    image: roi/client-ha:2.7.3
+    hostname: client
+    environment:
+      - "SERVICE_NAME=hadoop-client"
+      - "HADOOP_ROLE=CLIENT"
+      - "HADOOP_JOURNALNODE1=journalnode1"
+      - "HADOOP_JOURNALNODE2=journalnode2"
+      - "HADOOP_JOURNALNODE3=journalnode3"
+      - "HADOOP_NAMENODE1=namenode1"
+      - "HADOOP_NAMENODE2=namenode2"
+      - "HADOOP_ZOOKEEPER_CONNECT=zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
+    volumes:
+      - /home/student/datasets:/datasets
+      - /home/student/roi-nosql/hdfs_exercises/hdfs-scripts:/hdfs-scripts
+    depends_on:
+      - zookeeper1
+      - zookeeper2
+      - zookeeper3
+      - namenode1
+      - namenode2
+      - datanode1
+      - datanode2

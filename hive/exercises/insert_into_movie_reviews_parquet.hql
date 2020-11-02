@@ -1,0 +1,1 @@
+insert overwrite table movie_reviews_parquet select regexp_extract(input__file__name, '.*/(\\d+)\_(\\d+)', 1) as id, regexp_extract(input__file__name, '.*/(\\d+)\_(\\d+)', 2) as rating, word from movie_reviews lateral view explode(split(regexp_replace(regexp_replace(text, "'", ""), '\\W', ' '), '\\s+')) words as word;

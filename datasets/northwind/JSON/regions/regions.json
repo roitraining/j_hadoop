@@ -1,4 +1,4 @@
-{"regionid":1,"regionname":"Eastern"}
-{"regionid":2,"regionname":"Western"}
-{"regionid":3,"regionname":"Northern"}
-{"regionid":4,"regionname":"Southern"}
+{"regionid":1,"regiondescription":"Eastern"}
+{"regionid":2,"regiondescription":"Western"}
+{"regionid":3,"regiondescription":"Northern"}
+{"regionid":4,"regiondescription":"Southern"}

@@ -1,0 +1,132 @@
+<project name="exercises">
+
+	<target name="clean">
+		<delete dir="bin"></delete>
+		<mkdir dir="bin"></mkdir>
+	</target>
+	<target name="compile">
+		<javac srcdir="src" destdir="bin" deprecation="true" includeantruntime="true">
+			<classpath>
+				<fileset dir="/usr/local/hadoop/share/hadoop/">
+					<include name="common/*.jar" />
+					<include name="common/lib/*.jar" />
+					<include name="mapreduce/*.jar" />
+					<include name="hdfs/*.jar" />
+					<exclude name="**/*tests*" />
+				</fileset>
+				<path location="/home/student/software/hadoop/etc/hadoop"></path>
+			</classpath>
+		</javac>
+	</target>
+
+	<target name="makejar">
+		<jar destfile="${ant.project.name}.jar" basedir="bin">
+		</jar>
+	</target>
+
+	<target name="runwordcount" depends="makejar">
+		<property name="out.dir" value="/javaoutput" />
+		<exec executable="hadoop">
+			<arg line="fs" />
+			<arg line="-rm" />
+			<arg line="-r" />
+			<arg line="${out.dir}" />
+		</exec>
+		<exec executable="hadoop">
+			<arg line="jar" />
+			<arg line="${ant.project.name}.jar" />
+			<arg line="com.roi.hadoop.wordcount.Main" />
+			<!-- assumes the file is already in HDFS -->
+			<arg line="/shakespeare.txt" />
+			<arg line="${out.dir}" />
+		</exec>
+		<exec executable="hadoop">
+			<arg line="fs" />
+			<arg line="-cat" />
+			<arg line="${out.dir}/part-*" />
+		</exec>
+	</target>
+	
+	<target name="grepnumwords" depends="makejar">
+		<property name="out.dir" value="/javaoutput" />
+		<exec executable="hadoop">
+			<arg line="fs" />
+			<arg line="-rm" />
+			<arg line="-r" />
+			<arg line="${out.dir}" />
+		</exec>
+		<exec executable="hadoop">
+			<arg line="jar" />
+			<arg line="${ant.project.name}.jar" />
+			<arg line="com.roi.hadoop.grepnumwords.Main" />
+			<!-- assumes the file is already in HDFS -->
+			<arg line="/shakespeare.txt" />
+			<arg line="${out.dir}" />
+			<arg line="lovely" />
+			<arg line="fair" />
+			<arg line="hungry" />
+			<arg line="hark" />
+		</exec>
+		<exec executable="hadoop">
+			<arg line="fs" />
+			<arg line="-cat" />
+			<arg line="${out.dir}/part-*" />
+		</exec>
+	</target>
+	
+	<target name="longestline" depends="makejar">
+		<property name="out.dir" value="/javaoutput" />
+		<exec executable="hadoop">
+			<arg line="fs" />
+			<arg line="-rm" />
+			<arg line="-r" />
+			<arg line="${out.dir}" />
+		</exec>
+		<exec executable="hadoop">
+			<arg line="jar" />
+			<arg line="${ant.project.name}.jar" />
+			<arg line="com.roi.hadoop.longestline.Main" />
+			<!-- assumes the file is already in HDFS -->
+			<arg line="/shakespeare.txt" />
+			<arg line="${out.dir}" />
+			<arg line="lovely" />
+			<arg line="fair" />
+			<arg line="hungry" />
+			<arg line="hark" />
+		</exec>
+		<exec executable="hadoop">
+			<arg line="fs" />
+			<arg line="-cat" />
+			<arg line="${out.dir}/part-*" />
+		</exec>
+	</target>
+	
+	<target name="aquamaxgrowth" depends="makejar">
+		<property name="out.dir" value="/javaoutput" />
+		<exec executable="hadoop">
+			<arg line="fs" />
+			<arg line="-rm" />
+			<arg line="-r" />
+			<arg line="${out.dir}" />
+		</exec>
+		<exec executable="hadoop">
+			<arg line="fs" />
+			<arg line="-copyFromLocal" />
+			<arg line="aquaculture.csv" />
+			<arg line="/aquaculture.csv" />
+		</exec>
+		<exec executable="hadoop">
+			<arg line="jar" />
+			<arg line="${ant.project.name}.jar" />
+			<arg line="com.roi.hadoop.aqua.Main" />
+			<arg line="/aquaculture.csv" />
+			<arg line="${out.dir}" />
+		</exec>
+		<exec executable="hadoop">
+			<arg line="fs" />
+			<arg line="-cat" />
+			<arg line="${out.dir}/part-*" />
+		</exec>
+	</target>
+
+</project>

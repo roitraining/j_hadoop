@@ -1,0 +1,7 @@
+com/roi/hadoop/aqua/AquaIngest.class
+com/roi/hadoop/aqua/Main.class
+com/roi/hadoop/aqua/AquaStat.class
+com/roi/hadoop/aqua/AquaMapper.class
+com/roi/hadoop/aqua/AquaIngest$Fields.class
+com/roi/hadoop/aqua/MaxRateReducer.class
+com/roi/hadoop/aqua/AquaRecorder.class

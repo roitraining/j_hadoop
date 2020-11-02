@@ -1,0 +1,1 @@
+hive --service hiveserver2
