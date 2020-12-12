@@ -7,7 +7,8 @@ hadoop fs -rm -r /regions
 hadoop fs -rm -r /territories
 hadoop fs -rm -r /user/hive/warehouse
 hadoop fs -mkdir /user/hive/warehouse
-hive --service metastore &
+nohup hive --service metastore > /dev/null 2>&1 &
+
 #cat /class/regions.hql
 #hive -i /class/regions.hql
 

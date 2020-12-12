@@ -39,6 +39,4 @@ mysql -ppassword -e "grant all privileges on *.* to 'test'@'localhost' identifie
 schematool -initSchema -dbType mysql
 
 echo "starting hive service"
-nohup hive --service metastore &>/dev/null &
-#hive -i /class/regions.hql
-
+nohup hive --service metastore > /dev/null 2>&1 &
