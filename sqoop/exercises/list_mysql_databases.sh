@@ -1,1 +1,2 @@
-sqoop list-databases --connect jdbc:mysql://localhost --username sqoopuser --password sqooppassword
+sqoop list-databases --connect jdbc:mysql://localhost?useSSL=false \
+ --username sqoopuser --password sqooppassword

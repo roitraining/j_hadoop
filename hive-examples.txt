@@ -16,10 +16,12 @@ LOCATION '/regions';
 DESCRIBE regions;
 DESCRIBE FORMATTED regions;
 
-CREATE TABLE regions0(RegionID int, RegionName string)
+CREATE TABLE regions(RegionID int, RegionName string)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
 
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSV/regions' OVERWRITE INTO TABLE regions0;
+! hadoop fs -put /class/datasets/northwind/CSV/regions/* /user/hive/warehouse/classroom.db/regions
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSV/regions' OVERWRITE INTO TABLE regions;
 
 CREATE TABLE regions0(RegionID int, RegionName string)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
@@ -28,8 +30,9 @@ LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/regions' OVERWRITE 
 
 CREATE VIEW regions1 as SELECT * FROM regions where regionid is not null and regionname is not null;
 
-CREATE TABLE regions2(RegionID int, RegionName string)
+CREATE EXTERNAL TABLE regions2(RegionID int, RegionName string)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
+LOCATION '/user/hive/warehouse/classroom.db/regions0'
 TBLPROPERTIES("skip.header.line.count"="1");
 
 LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/regions' OVERWRITE INTO TABLE regions2;
@@ -136,19 +139,29 @@ show partitions transactions;
 alter table transactions drop partition (year=2015);
 alter table transactions add partition (year=2015);
 
+CREATE EXTERNAL TABLE transactions0
+(id int,
+amount double) PARTITIONED BY (Year int);
+
+insert into transactions0 partition(Year=2015) select 1, 100 union all select 2, 200;
+
+insert into transactions0 partition(Year=2016) select 3, 300 union all select 4, 400;
+
+insert into transactions0 partition(Year=2017) select 5, 500 union all select 6, 600;
 
 CREATE TABLE orders_table (
     orderid smallint,
     customerid varchar(5),
     skip0 string,
     orderdate date)
-ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t';
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
 
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/TSV/orders' overwrite into table orders_table;
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/orders' overwrite into table orders_table;
 
 create view orders_view as 
 select orderid, customerid, cast(orderdate as date) as orderdate, cast(left(orderdate, 4) as int) as year
-from orders_table;
+from orders_table
+where orderid is not null and customerid is not null;
 
 
 CREATE EXTERNAL TABLE orders_part (
@@ -164,7 +177,7 @@ SHOW PARTITIONS orders_part;
 INSERT OVERWRITE TABLE orders_part PARTITION (year = 1996)
 SELECT orderid, customerid, orderdate FROM orders_view WHERE year(orderdate) = 1996;
 
-INSERT OVERWRITE TABLE orders_part PARTITION (year = 1997)
+INSERT INTO orders_part PARTITION (year = 1997)
 SELECT orderid, customerid, orderdate FROM orders_view WHERE year(orderdate) = 1997;
 
 INSERT OVERWRITE TABLE orders_part PARTITION (year = 1998)
@@ -225,7 +238,7 @@ LOAD DATA LOCAL INPATH '/class/datasets/northwind/TSV/orderdetails' overwrite in
 
 dfs -ls /orderdetails;
 
-CREATE TABLE orderdetails0 (
+CREATE TABLE orderdetails1 (
     orderid smallint,
     productid smallint,
     unitprice decimal,
@@ -234,9 +247,9 @@ CREATE TABLE orderdetails0 (
 )
 CLUSTERED BY(orderid) SORTED BY (productid) INTO 16 BUCKETS
 STORED AS PARQUET
-LOCATION '/orderdetails0';
+LOCATION '/orderdetails1';
 
-insert into orderdetails0 select * from orderdetails;
+insert into orderdetails1 select * from orderdetails;
 
 dfs -ls /orderdetails0;
 
@@ -311,5 +324,38 @@ dfs -rm -r /newcategories;
 
 
 insert overwrite directory '/newproducts' stored as parquet select * from products;
+
+
+
+insert overwrite local directory '/tmp/shippers'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '|' 
+select * from shippers1;
+
+create table shippers_orc
+stored as orc
+as
+select companyname, shipperid, phone
+from shippers1;
+
+create table region_territory
+ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
+as
+select r.regionid, r.regionname
+, t.territoryid, t.territoryname 
+from regions as r
+join territories as t on r.regionid = t.regionid
+order by r.regionid, t.territoryid;
+
+
+
+
+customerid, orderdate, orderid  
+orderdetails everything except discount r
+customerid, companyname, country s
+join all three together to make a flat result i
+group into customer and list of orders r
+group by productid, array(customer and product)
+
+
 
 

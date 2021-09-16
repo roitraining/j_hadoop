@@ -28,6 +28,6 @@ def initspark(appname = "Test", servername = "local", cassandra="127.0.0.1", mon
 
 if __name__ == '__main__':
     sc, spark, conf = initspark()
-    x = spark.read.format('avro').load('/class/datasets/northwind/AVRO/categories')
+    x = spark.read.format('avro').load('file:///class/datasets/northwind/AVRO/categories')
     x.show()
 
