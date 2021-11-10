@@ -43,6 +43,12 @@ territoryname string,
 regionid int)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t';
 
+CREATE TABLE territories(
+territoryid int,
+territoryname string,
+regionid int)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t';
+
 LOAD DATA LOCAL INPATH '/class/datasets/northwind/TSV/territories' OVERWRITE INTO TABLE territories;
 
 select * from regions as r join territories as t on r.regionid = t.regionid;
@@ -99,6 +105,8 @@ create external table shippers4
 ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
 LOCATION '/shippers4';
 
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/JSON/shippers' OVERWRITE INTO TABLE shippers4;
+
 insert into shippers4 select * from shippers;
 
 # spark-sql
@@ -108,6 +116,14 @@ USING org.apache.spark.sql.json
 OPTIONS (
   path "/shippers4"
 );
+
+
+CREATE TEMPORARY VIEW shippers6
+USING org.apache.spark.sql.avro
+OPTIONS (
+  path "/shippers6"
+);
+
 
 SELECT * FROM shippers5;
 
@@ -125,7 +141,8 @@ SELECT territoryid, territoryname FROM territories WHERE regionid = 1;
 
 CREATE TABLE transactions
 (id int,
-amount double) PARTITIONED BY (Year int);
+amount double) PARTITIONED BY (Year int)
+LOCATION '/transactions';
 
 insert into transactions partition(Year=2015) select 1, 100 union all select 2, 200;
 show partitions transactions;
@@ -138,6 +155,8 @@ show partitions transactions;
 
 alter table transactions drop partition (year=2015);
 alter table transactions add partition (year=2015);
+alter table transactions add partition (year=2016);
+alter table transactions add partition (year=2017);
 
 CREATE EXTERNAL TABLE transactions0
 (id int,
@@ -152,9 +171,10 @@ insert into transactions0 partition(Year=2017) select 5, 500 union all select 6,
 CREATE TABLE orders_table (
     orderid smallint,
     customerid varchar(5),
-    skip0 string,
+    skip0 char(1),
     orderdate date)
-ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+LOCATION '/orders_table';
 
 LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/orders' overwrite into table orders_table;
 
@@ -290,7 +310,7 @@ FROM territory_list LATERAL VIEW EXPLODE(territorylist) EXPLODED_TABLE AS territ
 SELECT regionid, regionname, t
 FROM region_territory LATERAL VIEW EXPLODE(territorylist) EXPLODED_TABLE AS t;
 
-SELECT regionid, regionname, t.territoryid, t.territoryname
+SELECT regionid, regionname, t.territoryid, t.territcoryname
 FROM territory_region LATERAL VIEW EXPLODE(territorylist) EXPLODED_TABLE AS t;
 
 
@@ -349,12 +369,239 @@ order by r.regionid, t.territoryid;
 
 
 
-customerid, orderdate, orderid  
-orderdetails everything except discount r
-customerid, companyname, country s
-join all three together to make a flat result i
-group into customer and list of orders r
+customerid, orderdate, orderid\00\00
+orderdetails everything except discount\00r
+customerid, companyname, country\00s
+join all three together to make a flat result\00i
+group into customer and list of orders\00r
 group by productid, array(customer and product)
+
+
+
+
+select * from regions as r join territories as t on r.regionid = t.regionid order by r.regionid, t.territoryid;
+
+
+create table usstates
+(stateid int
+,statename string
+,stateabbr string
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' ;
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSV/usstates' OVERWRITE INTO TABLE usstates;
+
+
+create external table usstates2
+(stateid int
+,statename string
+,ignore1 char(1)
+,stateregion string
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+location '/user/hive/warehouse/northwind.db/usstates';
+
+create view usstates3 as select stateid, statename, stateregion from usstates2 where stateid is not null;
+
+create table usstates4 as select * from usstates3;
+
+create table usstates5 
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+as
+select * from usstates3
+
+
+
+create table usstates5 
+STORED AS AVRO
+as
+select * from usstates3;
+
+
+
+
+create external table usstates6
+(stateid int
+,statename string
+,stateregion string
+)
+STORED AS AVRO
+LOCATION '/user/hive/warehouse/northwind.db/usstates5';
+
+
+create external table usstates7
+(Stateid int
+,name string
+,stateregion string
+)
+STORED AS AVRO
+LOCATION '/user/hive/warehouse/northwind.db/usstates5';
+
+
+CREATE TABLE IF NOT EXISTS usstates8
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+   "separatorChar" = ",",
+   "quoteChar"     = "'",
+   "escapeChar"    = "\\"
+)
+AS
+select * from usstates3;
+
+
+INSERT OVERWRITE LOCAL DIRECTORY '/tmp/usstates8' 
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+   "separatorChar" = ",",
+   "quoteChar"     = "'",
+   "escapeChar"    = "\\"
+)
+select * from usstates3;
+
+create table territories2
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '|'
+AS SELECT * FROM territories;
+
+create table usstates10
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '|'
+AS SELECT * FROM usstates3;
+
+
+create table usstates11
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '|'
+LOCATION '/usstates11'
+AS SELECT * FROM usstates3;
+
+
+create external table IF NOT EXISTS usstates12
+(id int
+,name string
+,region string
+)
+STORED AS AVRO
+LOCATION '/usstates12';
+
+
+
+CREATE TABLE Person(
+PersonID int,
+Name string,
+Skills ARRAY<string>
+)
+location '/person';
+
+INSERT INTO Person 
+SELECT 1, 'joey', ARRAY('Java', 'Python', 'Hadoop') 
+UNION ALL SELECT 2, 'mary', ARRAY('C++', 'Java', 'Hive');
+
+
+
+CREATE TABLE Person2(
+PersonID int,
+Name string,
+Skills ARRAY<string>
+)
+ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
+location '/person2';
+
+INSERT INTO Person2
+SELECT 1, 'joey', ARRAY('Java', 'Python', 'Hadoop') 
+UNION ALL SELECT 2, 'mary', ARRAY('C++', 'Java', 'Hive');
+
+
+CREATE TEMPORARY VIEW person3
+USING org.apache.spark.sql.json
+OPTIONS (
+  path "/person3"
+);
+
+
+
+select personid, name, skills[0] as skill1, skills[size(skills)-1] from person;
+
+
+SELECT PersonID, Name, SkillName 
+FROM Person LATERAL VIEW EXPLODE(Skills) EXPLODED_TABLE AS SkillName;
+
+
+create table skills_denormalized as
+SELECT PersonID, Name, SkillName 
+FROM Person LATERAL VIEW EXPLODE(Skills) EXPLODED_TABLE AS SkillName;
+
+select personid, name, collect_set(skillname) as skills
+from skills_denormalized
+group by personid, name;
+
+
+create table skills_nested as
+select personid, name, collect_set(skillname) as skills
+from skills_denormalized
+group by personid, name;
+
+
+select regionid, collect_list(territoryname) as territories
+from territories
+group by regionid;
+
+create table territories_list as
+select regionid, collect_list(territoryname) as territories
+from territories
+group by regionid;
+
+
+select regionid, t
+from territories_list lateral view explode(territories) exploded_table as t;
+
+
+
+CREATE TABLE complex1(
+id int,
+name string,
+location struct<lat:decimal(4,2), lng:decimal(4,2), city:string>
+);
+INSERT INTO table complex1
+select 1, 'joey', NAMED_STRUCT('lat', 25.81, 'lng', -80.19, 'city', 'Miami');
+
+CREATE TABLE complex2(
+id int,
+name string,
+locations array<struct<lat:decimal(4,2), lng:decimal(4,2), city:string>>
+);
+
+INSERT INTO table complex2
+select 1, 'joey', ARRAY(
+NAMED_STRUCT('lat', 25.81, 'lng', -80.19, 'city', 'Miami'),
+NAMED_STRUCT('lat', 25.81, 'lng', -80.19, 'city', 'DC'));
+
+SELECT * FROM complex2;
+
+
+select id, name, l
+from complex2 lateral view explode(locations) exploded_table as l;
+
+select id, name, l.lat, l.lng, l.city
+from complex2 lateral view explode(locations) exploded_table as l;
+
+create table complex3 as
+select id, name, l.lat, l.lng, l.city
+from complex2 lateral view explode(locations) exploded_table as l;
+
+
+select id, name, named_struct('lat', lat, 'lng', lng, 'city', city) as location
+from complex3;
+
+select id, name, collect_list(named_struct('lat', lat, 'lng', lng, 'city', city)) as locations
+from complex3
+group by id, name;
+
+
+SELECT r.RegionID, r.RegionName
+   , COLLECT_SET(NAMED_STRUCT("TerritoryID", TerritoryID,     "TerritoryName", TerritoryName)) AS TerritoryList
+FROM Regions AS r
+JOIN Territories AS t ON r.RegionID = t.RegionID
+GROUP BY r.RegionID, r.RegionName
+ORDER BY r.RegionID;
+
 
 
 
