@@ -596,7 +596,7 @@ group by id, name;
 
 
 SELECT r.RegionID, r.RegionName
-   , COLLECT_SET(NAMED_STRUCT("TerritoryID", TerritoryID,     "TerritoryName", TerritoryName)) AS TerritoryList
+   , COLLECT_SET(NAMED_STRUCT("TerritoryID", TerritoryID, "TerritoryName", TerritoryName)) AS TerritoryList
 FROM Regions AS r
 JOIN Territories AS t ON r.RegionID = t.RegionID
 GROUP BY r.RegionID, r.RegionName
