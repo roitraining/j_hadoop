@@ -1,0 +1,43 @@
+#! /bin/sh
+# Here's a list of all the python libraries I've added or upgraded so far
+#pip3 uninstall jupyter-client jupyter-console jupyter-core jupyter-server jupyterlab jupyterlab-server
+pip install --upgrade pip
+pip install --ignore-installed pyzmq
+pip install --ignore-installed terminado
+pip install --ignore-installed pexpect
+pip install jupyterlab jupyter_client
+pip install --upgrade jupyter_client
+# jupyter lab --allow-root
+
+# https://towardsdatascience.com/how-to-connect-to-jupyterlab-remotely-9180b57c45bb
+jupyter server --generate-config
+jupyter server password
+# password student
+
+pip uninstall numpy
+pip install numpy
+pip install kafka-python
+pip install pykafka
+pip install pandas
+pip install cython
+
+# python 3.6
+#pip install pyarrow==0.9.0
+
+pip install --upgrade protobuf
+pip install --upgrade tensorflow
+pip install apache-beam
+#pip install apache-beam[interactive]
+pip install docker
+pip install pyspark
+
+
+# thrift server for hbase
+sudo apt-get install libboost-dev libboost-test-dev libboost-program-options-dev libevent-dev automake libtool flex bison pkg-config g++ libssl-dev  
+wget https://dlcdn.apache.org/thrift/0.16.0/thrift-0.16.0.tar.gz
+tar -xvzf thrift-0.16.0.tar.gz  
+./configure  
+make  
+sudo make install  
+thrift -version 
+
