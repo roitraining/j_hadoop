@@ -606,3 +606,33 @@ ORDER BY r.RegionID;
 
 
 
+
+
+
+
+create external table products(
+  productid int,
+  productname string,
+  ignore1 string, 
+  categoryid int,
+  ignore2 string,
+  price float 
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+LOCATION '/products'
+
+select productid, productname, categoryid, price from products where productid is not null limit 10;
+
+create external table products(
+  productid int,
+  productname string,
+  ignore1 string, 
+  categoryid int,
+  ignore2 string,
+  price float 
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+LOCATION '/products'
+TBLPROPERTIES("skip.header.line.count"="1");
+
+create view products2 as select productid, productname, categoryid, price from products where productid is not null;
