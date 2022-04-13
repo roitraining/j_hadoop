@@ -151,7 +151,9 @@ CREATE TABLE transactions
 amount double) PARTITIONED BY (Year int)
 LOCATION '/transactions';
 
-insert into transactions partition(Year=2015) select 1, 100 union all select 2, 200;
+insert into transactions partition(Year=2015) 
+select 1, 100 union all select 2, 200;
+
 show partitions transactions;
 
 insert into transactions partition(Year=2016) select 3, 300 union all select 4, 400;
@@ -164,6 +166,13 @@ alter table transactions drop partition (year=2015);
 alter table transactions add partition (year=2015);
 alter table transactions add partition (year=2016);
 alter table transactions add partition (year=2017);
+
+
+CREATE TABLE transactions2
+(id int,
+amount double) PARTITIONED BY (year int, month int)
+LOCATION '/transactions2';
+
 
 CREATE EXTERNAL TABLE transactions0
 (id int,
@@ -186,7 +195,14 @@ LOCATION '/orders_table';
 LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/orders' overwrite into table orders_table;
 
 create view orders_view as 
-select orderid, customerid, cast(orderdate as date) as orderdate, cast(left(orderdate, 4) as int) as year
+select orderid, customerid, orderdate, cast(substring(cast(orderdate as string), 1, 4) as int) as year 
+from orders_table
+where orderid is not null and customerid is not null;
+
+-- bad
+create view orders_view as 
+select orderid, customerid, cast(orderdate as date) as orderdate
+, cast(left(orderdate, 4) as int) as year
 from orders_table
 where orderid is not null and customerid is not null;
 
@@ -649,7 +665,7 @@ create view products2 as select productid, productname, categoryid, price from p
 ADD JAR /usr/local/hive/hcatalog/share/hcatalog/hive-hcatalog-core.jar;
 
 create table customers
-(customernane string
+(companyname string
 , city string
 , region string
 , country string)
