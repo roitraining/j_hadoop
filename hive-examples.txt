@@ -32,7 +32,6 @@ CREATE VIEW regions1 as SELECT * FROM regions where regionid is not null and reg
 
 CREATE EXTERNAL TABLE regions2(RegionID int, RegionName string)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
-LOCATION '/user/hive/warehouse/classroom.db/regions0'
 TBLPROPERTIES("skip.header.line.count"="1");
 
 LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/regions' OVERWRITE INTO TABLE regions2;
@@ -61,6 +60,14 @@ create table usstates
 ,stateregion string
 )
 STORED AS AVRO;
+
+create table usstates
+(state_id int
+,stateabbr string
+,StateName string
+)
+STORED AS AVRO;
+
 
 LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/usstates' OVERWRITE INTO TABLE usstates;
 
@@ -636,3 +643,25 @@ LOCATION '/products'
 TBLPROPERTIES("skip.header.line.count"="1");
 
 create view products2 as select productid, productname, categoryid, price from products where productid is not null;
+
+
+
+ADD JAR /usr/local/hive/hcatalog/share/hcatalog/hive-hcatalog-core.jar;
+
+create table customers
+(customernane string
+, city string
+, region string
+, country string)
+stored as avro
+location '/customers';
+
+load data local inpath '/class/datasets/northwind/AVRO/customers' 
+overwrite into table customers;
+
+insert overwrite local directory '/tmp/customers' 
+ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
+select * from customers;
+
+
+
