@@ -103,6 +103,11 @@ AS
 SELECT * FROM shippers1;
 
 ADD JAR /usr/local/hive/hcatalog/share/hcatalog/hive-hcatalog-core.jar;
+create external table regions_json
+(regionid int,
+regiondescription string)
+ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
+LOCATION '/regions_json';
 
 create external table shippers4
 (shipperid int
@@ -117,6 +122,12 @@ LOAD DATA LOCAL INPATH '/class/datasets/northwind/JSON/shippers' OVERWRITE INTO 
 insert into shippers4 select * from shippers;
 
 # spark-sql
+
+CREATE TEMPORARY VIEW regions_json2
+USING org.apache.spark.sql.json
+OPTIONS (
+  path "/regions_json"
+);
 
 CREATE TEMPORARY VIEW shippers5
 USING org.apache.spark.sql.json
@@ -149,6 +160,7 @@ SELECT territoryid, territoryname FROM territories WHERE regionid = 1;
 CREATE TABLE transactions
 (id int,
 amount double) PARTITIONED BY (Year int)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '|' 
 LOCATION '/transactions';
 
 insert into transactions partition(Year=2015) 
@@ -447,9 +459,21 @@ create external table usstates6
 (stateid int
 ,statename string
 ,stateregion string
+,stateabbr string
 )
 STORED AS AVRO
-LOCATION '/user/hive/warehouse/northwind.db/usstates5';
+LOCATION '/usstates6';
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/usstates' OVERWRITE INTO TABLE usstates6;
+
+create external table usstates6
+(stateid int
+,state_region string
+,statename string
+)
+STORED AS AVRO
+LOCATION '/usstates6';
+
 
 
 create external table usstates7
@@ -660,11 +684,27 @@ TBLPROPERTIES("skip.header.line.count"="1");
 
 create view products2 as select productid, productname, categoryid, price from products where productid is not null;
 
+AVRO version customers
+name of company city, region, country
+
+
+write them out as | separated file
+
+
+
+
+
+
+
+
+
+
+
 
 
 ADD JAR /usr/local/hive/hcatalog/share/hcatalog/hive-hcatalog-core.jar;
 
-create table customers
+create external table customers
 (companyname string
 , city string
 , region string
@@ -681,3 +721,22 @@ select * from customers;
 
 
 
+
+CREATE TABLE territory_list
+USING org.apache.spark.sql.json
+OPTIONS (
+  path "/territory_list"
+) as
+select regionid, collect_list(territoryname) as terrtitories from territories group by regionid;
+
+
+
+CREATE TABLE regions_denorm
+option (path "/region_denorm")
+as
+select r.regionid, r.regionname,  t.territoryid, t.territoryname from regions as r join territories as t on r.regionid = t.regionid;
+
+CREATE TABLE regions_nested
+option (path "/region_dnested")
+as
+select r.regionid, r.regionname, collect_list(named_struct('territoryid', t.territoryid, 'territoryname', t.territoryname)) as territories from regions as r join territories as t on r.regionid = t.regionid group by r.regionid, r.regionname;
