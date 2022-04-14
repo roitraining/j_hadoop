@@ -542,6 +542,9 @@ SELECT 1, 'joey', ARRAY('Java', 'Python', 'Hadoop')
 UNION ALL SELECT 2, 'mary', ARRAY('C++', 'Java', 'Hive');
 
 
+INSERT INTO Person 
+SELECT 3, 'han', ARRAY('Java', 'Python', 'Java', 'C++');
+
 
 CREATE TABLE Person2(
 PersonID int,
@@ -554,6 +557,49 @@ location '/person2';
 INSERT INTO Person2
 SELECT 1, 'joey', ARRAY('Java', 'Python', 'Hadoop') 
 UNION ALL SELECT 2, 'mary', ARRAY('C++', 'Java', 'Hive');
+
+
+CREATE TABLE Person3(
+PersonID int,
+Name string,
+Skills ARRAY<string>
+)
+USING org.apache.spark.sql.json
+OPTIONS (path "/person3");
+
+create table regions_list
+USING org.apache.spark.sql.json
+OPTIONS (path "/regions_list")
+as
+select regionid, collect_list(territoryname) as territories
+from territories
+group by regionid;
+
+
+insert overwrite local directory '/tmp/region_list'
+USING org.apache.spark.sql.json
+select regionid, collect_list(territoryname) as territories
+from territories
+group by regionid;
+
+
+
+CREATE TABLE Person4(
+PersonID int,
+Name string,
+Skills ARRAY<string>
+)
+USING parquet
+OPTIONS (path "/person4");
+
+CREATE TABLE Person5(
+PersonID int,
+Name string,
+Skills ARRAY<string>
+)
+STORED AS parquet
+LOCATION "/person5";
+
 
 
 CREATE TEMPORARY VIEW person3
@@ -569,6 +615,17 @@ select personid, name, skills[0] as skill1, skills[size(skills)-1] from person;
 
 SELECT PersonID, Name, SkillName 
 FROM Person LATERAL VIEW EXPLODE(Skills) EXPLODED_TABLE AS SkillName;
+
+with x as (select personid, name, skill from person lateral view explode(skills) as skill)
+select skill, count(*) as cnt from x group by skill;
+
+select skill, count(*) as cnt 
+from (select personid, name, skill from person lateral view explode(skills) as skill) as x 
+group by skill;
+
+create temporary view x as select personid, name, skill from person lateral view explode(skills) as skill;
+select skill, count(*) as cnt from x group by skill;
+
 
 
 create table skills_denormalized as
@@ -740,3 +797,20 @@ CREATE TABLE regions_nested
 option (path "/region_dnested")
 as
 select r.regionid, r.regionname, collect_list(named_struct('territoryid', t.territoryid, 'territoryname', t.territoryname)) as territories from regions as r join territories as t on r.regionid = t.regionid group by r.regionid, r.regionname;
+
+
+-- pyspark
+r = spark.read.table('regions')
+r = spark.sql('select * from regions where regionid < 5')
+r.show()
+spark.read.table('regions').where('regionid < 5').show()
+
+spark.read.csv('file:///class/datasets/northwind/CSVHeaders/products', header=True, inferSchema=True)
+p = spark.read.csv('file:///class/datasets/northwind/CSVHeaders/products', header=True, inferSchema=True)
+p.where('unitprice < 10').show()
+
+p.createOrReplaceTempView('product')
+spark.sql('select productid, productname, unitprice from product where unitprice < 10').show()
+spark.sql('select productid, productname, unitprice from product where unitprice < 10').orderBy('unitprice').show()
+
+
