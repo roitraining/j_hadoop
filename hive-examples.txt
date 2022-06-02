@@ -32,7 +32,6 @@ CREATE VIEW regions1 as SELECT * FROM regions where regionid is not null and reg
 
 CREATE EXTERNAL TABLE regions2(RegionID int, RegionName string)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
-LOCATION '/user/hive/warehouse/classroom.db/regions0'
 TBLPROPERTIES("skip.header.line.count"="1");
 
 LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/regions' OVERWRITE INTO TABLE regions2;
@@ -61,6 +60,14 @@ create table usstates
 ,stateregion string
 )
 STORED AS AVRO;
+
+create table usstates
+(state_id int
+,stateabbr string
+,StateName string
+)
+STORED AS AVRO;
+
 
 LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/usstates' OVERWRITE INTO TABLE usstates;
 
@@ -96,6 +103,11 @@ AS
 SELECT * FROM shippers1;
 
 ADD JAR /usr/local/hive/hcatalog/share/hcatalog/hive-hcatalog-core.jar;
+create external table regions_json
+(regionid int,
+regiondescription string)
+ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
+LOCATION '/regions_json';
 
 create external table shippers4
 (shipperid int
@@ -110,6 +122,12 @@ LOAD DATA LOCAL INPATH '/class/datasets/northwind/JSON/shippers' OVERWRITE INTO 
 insert into shippers4 select * from shippers;
 
 # spark-sql
+
+CREATE TEMPORARY VIEW regions_json2
+USING org.apache.spark.sql.json
+OPTIONS (
+  path "/regions_json"
+);
 
 CREATE TEMPORARY VIEW shippers5
 USING org.apache.spark.sql.json
@@ -142,9 +160,12 @@ SELECT territoryid, territoryname FROM territories WHERE regionid = 1;
 CREATE TABLE transactions
 (id int,
 amount double) PARTITIONED BY (Year int)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '|' 
 LOCATION '/transactions';
 
-insert into transactions partition(Year=2015) select 1, 100 union all select 2, 200;
+insert into transactions partition(Year=2015) 
+select 1, 100 union all select 2, 200;
+
 show partitions transactions;
 
 insert into transactions partition(Year=2016) select 3, 300 union all select 4, 400;
@@ -157,6 +178,13 @@ alter table transactions drop partition (year=2015);
 alter table transactions add partition (year=2015);
 alter table transactions add partition (year=2016);
 alter table transactions add partition (year=2017);
+
+
+CREATE TABLE transactions2
+(id int,
+amount double) PARTITIONED BY (year int, month int)
+LOCATION '/transactions2';
+
 
 CREATE EXTERNAL TABLE transactions0
 (id int,
@@ -179,7 +207,14 @@ LOCATION '/orders_table';
 LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/orders' overwrite into table orders_table;
 
 create view orders_view as 
-select orderid, customerid, cast(orderdate as date) as orderdate, cast(left(orderdate, 4) as int) as year
+select orderid, customerid, orderdate, cast(substring(cast(orderdate as string), 1, 4) as int) as year 
+from orders_table
+where orderid is not null and customerid is not null;
+
+-- bad
+create view orders_view as 
+select orderid, customerid, cast(orderdate as date) as orderdate
+, cast(left(orderdate, 4) as int) as year
 from orders_table
 where orderid is not null and customerid is not null;
 
@@ -424,9 +459,21 @@ create external table usstates6
 (stateid int
 ,statename string
 ,stateregion string
+,stateabbr string
 )
 STORED AS AVRO
-LOCATION '/user/hive/warehouse/northwind.db/usstates5';
+LOCATION '/usstates6';
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/usstates' OVERWRITE INTO TABLE usstates6;
+
+create external table usstates6
+(stateid int
+,state_region string
+,statename string
+)
+STORED AS AVRO
+LOCATION '/usstates6';
+
 
 
 create external table usstates7
@@ -495,6 +542,9 @@ SELECT 1, 'joey', ARRAY('Java', 'Python', 'Hadoop')
 UNION ALL SELECT 2, 'mary', ARRAY('C++', 'Java', 'Hive');
 
 
+INSERT INTO Person 
+SELECT 3, 'han', ARRAY('Java', 'Python', 'Java', 'C++');
+
 
 CREATE TABLE Person2(
 PersonID int,
@@ -507,6 +557,49 @@ location '/person2';
 INSERT INTO Person2
 SELECT 1, 'joey', ARRAY('Java', 'Python', 'Hadoop') 
 UNION ALL SELECT 2, 'mary', ARRAY('C++', 'Java', 'Hive');
+
+
+CREATE TABLE Person3(
+PersonID int,
+Name string,
+Skills ARRAY<string>
+)
+USING org.apache.spark.sql.json
+OPTIONS (path "/person3");
+
+create table regions_list
+USING org.apache.spark.sql.json
+OPTIONS (path "/regions_list")
+as
+select regionid, collect_list(territoryname) as territories
+from territories
+group by regionid;
+
+
+insert overwrite local directory '/tmp/region_list'
+USING org.apache.spark.sql.json
+select regionid, collect_list(territoryname) as territories
+from territories
+group by regionid;
+
+
+
+CREATE TABLE Person4(
+PersonID int,
+Name string,
+Skills ARRAY<string>
+)
+USING parquet
+OPTIONS (path "/person4");
+
+CREATE TABLE Person5(
+PersonID int,
+Name string,
+Skills ARRAY<string>
+)
+STORED AS parquet
+LOCATION "/person5";
+
 
 
 CREATE TEMPORARY VIEW person3
@@ -522,6 +615,17 @@ select personid, name, skills[0] as skill1, skills[size(skills)-1] from person;
 
 SELECT PersonID, Name, SkillName 
 FROM Person LATERAL VIEW EXPLODE(Skills) EXPLODED_TABLE AS SkillName;
+
+with x as (select personid, name, skill from person lateral view explode(skills) as skill)
+select skill, count(*) as cnt from x group by skill;
+
+select skill, count(*) as cnt 
+from (select personid, name, skill from person lateral view explode(skills) as skill) as x 
+group by skill;
+
+create temporary view x as select personid, name, skill from person lateral view explode(skills) as skill;
+select skill, count(*) as cnt from x group by skill;
+
 
 
 create table skills_denormalized as
@@ -636,3 +740,77 @@ LOCATION '/products'
 TBLPROPERTIES("skip.header.line.count"="1");
 
 create view products2 as select productid, productname, categoryid, price from products where productid is not null;
+
+AVRO version customers
+name of company city, region, country
+
+
+write them out as | separated file
+
+
+
+
+
+
+
+
+
+
+
+
+
+ADD JAR /usr/local/hive/hcatalog/share/hcatalog/hive-hcatalog-core.jar;
+
+create external table customers
+(companyname string
+, city string
+, region string
+, country string)
+stored as avro
+location '/customers';
+
+load data local inpath '/class/datasets/northwind/AVRO/customers' 
+overwrite into table customers;
+
+insert overwrite local directory '/tmp/customers' 
+ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
+select * from customers;
+
+
+
+
+CREATE TABLE territory_list
+USING org.apache.spark.sql.json
+OPTIONS (
+  path "/territory_list"
+) as
+select regionid, collect_list(territoryname) as terrtitories from territories group by regionid;
+
+
+
+CREATE TABLE regions_denorm
+option (path "/region_denorm")
+as
+select r.regionid, r.regionname,  t.territoryid, t.territoryname from regions as r join territories as t on r.regionid = t.regionid;
+
+CREATE TABLE regions_nested
+option (path "/region_dnested")
+as
+select r.regionid, r.regionname, collect_list(named_struct('territoryid', t.territoryid, 'territoryname', t.territoryname)) as territories from regions as r join territories as t on r.regionid = t.regionid group by r.regionid, r.regionname;
+
+
+-- pyspark
+r = spark.read.table('regions')
+r = spark.sql('select * from regions where regionid < 5')
+r.show()
+spark.read.table('regions').where('regionid < 5').show()
+
+spark.read.csv('file:///class/datasets/northwind/CSVHeaders/products', header=True, inferSchema=True)
+p = spark.read.csv('file:///class/datasets/northwind/CSVHeaders/products', header=True, inferSchema=True)
+p.where('unitprice < 10').show()
+
+p.createOrReplaceTempView('product')
+spark.sql('select productid, productname, unitprice from product where unitprice < 10').show()
+spark.sql('select productid, productname, unitprice from product where unitprice < 10').orderBy('unitprice').show()
+
+
