@@ -80,7 +80,7 @@ def initspark(appname = "Test", servername = "local"
     sc = SparkContext()
     sc.setLogLevel("ERROR")
     spark = (SparkSession.builder.appName(appname) 
-    .config("spark.sql.warehouse.dir", "hdfs://localhost:9000/user/hive/warehouse")
+#    .config("spark.sql.warehouse.dir", "hdfs://localhost:9000/user/hive/warehouse")
     .enableHiveSupport().getOrCreate()
     )
     spark.sparkContext.setLogLevel("ERROR")
