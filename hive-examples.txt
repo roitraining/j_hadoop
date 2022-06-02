@@ -1,40 +1,118 @@
-set hive.execution.engine=mr;
-set hive.execution.engine=spark;
+# Make sure Hadoop is running by running start-hadoop
+# If anything is corrupt run format-namenode
 
+# Put the regions folder into HDFS
+hadoop fs -put /class/datasets/northwind/CSV/regions /regions
 
-! hadoop fs -put /class/datasets/northwind/CSV/regions /regions
+# Start Hive CLI
+hive
 
-create database classroom;
-use classroom;
-
-CREATE EXTERNAL TABLE regions(RegionID int, RegionName string)
+# Create a table 
+CREATE TABLE regions(regionid int, regionname string)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
 LINES TERMINATED BY '\n' 
 STORED AS TEXTFILE
 LOCATION '/regions';
 
-DESCRIBE regions;
-DESCRIBE FORMATTED regions;
+# Query the table
+SELECT * FROM regions;
 
-CREATE TABLE regions(RegionID int, RegionName string)
-ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+# Drop the table
+DROP table regions;
 
-! hadoop fs -put /class/datasets/northwind/CSV/regions/* /user/hive/warehouse/classroom.db/regions
+# Note the HDFS folder is deleted also
+hadoop fs -ls /
 
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSV/regions' OVERWRITE INTO TABLE regions;
+# Recreate the table, this time with no location
+CREATE TABLE regions(regionid int, regionname string)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' ;
 
-CREATE TABLE regions0(RegionID int, RegionName string)
-ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+# Use the dfs command to see where it created it
+dfs -ls /user/hive/warehouse ;
 
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/regions' OVERWRITE INTO TABLE regions0;
+dfs -ls /user/hive/warehouse/regions ;
 
-CREATE VIEW regions1 as SELECT * FROM regions where regionid is not null and regionname is not null;
+# Select from it and note it's empty
+SELECT * FROM regions;
 
-CREATE EXTERNAL TABLE regions2(RegionID int, RegionName string)
+# Let's put data into the folder
+! hadoop fs -put /class/datasets/northwind/CSV/regions/* /user/hive/warehouse/regions ;
+
+# Select from it and now there's data
+SELECT * FROM regions;
+
+# Let's drop the table again and confirm the regions folder is gone
+DROP table regions;
+
+dfs -ls /user/hive/warehouse ;
+
+# Create a northwind database
+create database northwind;
+
+use northwind;
+
+# Recreate regions in the northwind database
+CREATE TABLE regions(regionid int, regionname string)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' ;
+
+# Confirm the new folder structure
+dfs -ls /user/hive/warehouse ;
+
+dfs -ls /user/hive/warehouse/northwind.db ;
+
+# Instead of putting the files with hadoop fs commands, try a new way
+# Let's also try a file with headers in first row
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/regions' OVERWRITE INTO TABLE regions;
+
+SELECT * FROM regions;
+
+# Note how we have an extra row since the first line is treated as a data row
+# We can eliminate it with a WHERE clause
+SELECT * FROM regions WHERE regionid IS NOT NULL;
+
+# Sometimes people prefer to use TBLPROPERTIES
+CREATE EXTERNAL TABLE regions2(regionid int, regionname string)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
+LOCATION '/user/hive/warehouse/classroom.db/regions'
 TBLPROPERTIES("skip.header.line.count"="1");
 
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/regions' OVERWRITE INTO TABLE regions2;
+SELECT * FROM regions2;
+
+# Use DESCRIBE to learn a little about the tables
+DESCRIBE regions;
+
+DESCRIBE FORMATTED regions;
+
+DESCRIBE FORMATTED regions2;
+
+# The TBLPROPERTIES skipped the first row of the file, 
+# We defined a second table definition pointing to the same location 
+# as the other table, but EXTERNAL means don't delete the files when 
+# we DROP the table
+DROP TABLE regions2;
+
+# Could also create a view to clean up anything in the table
+CREATE VIEW regions1 AS SELECT * FROM regions where regionid is not null and regionname is not null;
+
+SELECT * FROM regions1;
+
+# Try to create a territories table from the TSV folder
+# In this case there are tab separators (\t) but otherwise the same as CSV
+# The columnes are territoryid int, territoryname string, regionid int
+# create the table and populate it with data using whatever method you prefer.
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 CREATE TABLE territories(
 territoryid string,
@@ -42,18 +120,52 @@ territoryname string,
 regionid int)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t';
 
-CREATE TABLE territories(
-territoryid int,
-territoryname string,
-regionid int)
-ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t';
-
 LOAD DATA LOCAL INPATH '/class/datasets/northwind/TSV/territories' OVERWRITE INTO TABLE territories;
 
-select * from regions as r join territories as t on r.regionid = t.regionid;
-select regionid, count(*) from territories group by regionid;
+# Try some more complex queries like a JOIN and GROUP BY
+SELECT * FROM regions AS r JOIN territories AS t ON r.regionid = t.regionid;
 
-create table usstates
+SELECT regionid, COUNT(*) FROM territories GROUP BY regionid;
+
+# It takes a lot longer because it has to do not only MAP operations but also
+# SHUFFLE and REDUCE operations.
+# Launch another terminal window and run spark-sql, the run the following queries
+USE northwind;
+
+SELECT * FROM regions AS r JOIN territories AS t ON r.regionid = t.regionid;
+
+SELECT regionid, COUNT(*) FROM territories GROUP BY regionid;
+
+# They run a lot faster because Spark is a better execution engine.
+# The table definitions are stored in the metastore inside MySQL.
+# Hive CLI simply uses the MapReduce Engine which is slow, 
+# whereas spark-sql uses the spark engine which is faster.
+# For the most part they are completely code compatible but there are some 
+# extensions to the Spark syntax and a few things you do differently here and there.
+
+# This could also be controlled in the script with the following commands:
+set hive.execution.engine=mr;
+set hive.execution.engine=spark;
+# but for some reason the spark engine isn't working right on this particular 
+# VM when using the Hive CLI, so we can just switch between the two different 
+# CLI windows
+
+# What happens if we put bad data into a folder. Take a look at this file
+!cat /class/regions2.csv;
+
+LOAD DATA LOCAL INPATH '/class/regions2.csv' INTO TABLE regions;
+
+SELECT * FROM regions;
+
+# Note how the extra column for row 6 is ignored
+# row 7 had nothing after the comma so its regionname is an empty string
+# row 8 has an empty string and ignores the third column
+# row 9 didn't even have a comma so it has NULL for the regionname
+# row 10 the first column would not parse to int so NULL was returned
+# row 11 is a phantom row from the final \n at the end of the file
+
+# How about other file formats. Use the Hive CLI and make sure to be in northwind
+CREATE TABLE usstates
 (stateid int
 ,statename string
 ,stateabbr string
@@ -61,141 +173,247 @@ create table usstates
 )
 STORED AS AVRO;
 
-create table usstates
-(state_id int
-,stateabbr string
-,StateName string
-)
-STORED AS AVRO;
-
-
 LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/usstates' OVERWRITE INTO TABLE usstates;
 
-create external table Shippers
-(ShipperID int
-,CompanyName string
-,Phone string
+SELECT * FROM usstates;
+
+# We could ignore fields we don't want. AVRO uses the field names inside the inferSchema
+# in the file header to determine what to match to your table definition
+CREATE TABLE usstates2
+(state_id int
+,stateabbr string
+,statename string
 )
 STORED AS AVRO;
 
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/shippers' OVERWRITE INTO TABLE Shippers;
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/usstates' OVERWRITE INTO TABLE usstates2;
 
-create external table Shippers1
+SELECT * FROM usstates2;
+
+# So if you put a column name that doesn't match to what's in the interal schema 
+# of the file it doesn't match
+CREATE TABLE shippers
+(shipperid int
+,company string
+,phone string
+)
+STORED AS AVRO;
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/shippers' OVERWRITE INTO TABLE shippers;
+
+SELECT * FROM shippers;
+
+# Let's drop it and create it properly. 
+DROP TABLE shippers;
+
+CREATE EXTERNAL TABLE shippers
 (shipperid int
 ,companyname string
 ,phone string
 )
+STORED AS AVRO;
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/shippers' OVERWRITE INTO TABLE shippers;
+
+SELECT * FROM shippers;
+
+# Parquet format is similar, except the data is stored as columns instead of rows
+# sometimes this is more efficient.
+CREATE TABLE categories
+(categoryid int
+,categoryname string
+)
 STORED AS PARQUET;
 
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/PARQUET/shippers' OVERWRITE INTO TABLE shippers1;
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/PARQUET/categories' OVERWRITE INTO TABLE categories;
 
-create table shippers2
-STORED AS ORC
-AS
-SELECT * FROM shippers1;
+SELECT * FROM categories;
 
-create table shippers3
+# ORC is also a column store and the syntax is similar
+CREATE TABLE products
+(productid int
+,productname string
+,categoryid int
+,unitprice decimal(5,2)
+,unitsinstock int
+)
+STORED AS ORC;
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/ORC/products' OVERWRITE INTO TABLE products;
+
+SELECT * FROM products;
+
+# We can also copy the results of a SQL query to another table using the 
+# familiar CREATE TABLE AS command
+CREATE TABLE shippers2
 ROW FORMAT DELIMITED FIELDS TERMINATED BY '|' 
-LINES TERMINATED BY '\n' 
-STORED AS TEXTFILE
-LOCATION '/shippers3'
+LOCATION '/shippers2'
 AS
-SELECT * FROM shippers1;
+SELECT * FROM shippers;
 
+dfs -cat /shippers2/* ;
+
+# But what if we want the results of a query but don't want the metadata saved
+# in the Hive metastore
+INSERT OVERWRITE DIRECTORY '/shippers3' 
+SELECT * FROM shippers;
+
+dfs -cat /shippers3/*;
+
+# That stored things in Hive native format, but we could add in additional clauses
+# just like in CREATE TABLE, to control the output format
+INSERT OVERWRITE DIRECTORY '/shippers4' 
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ';' 
+
+SELECT * FROM shippers;
+
+dfs -cat /shippers4/*;
+
+# Or copy it directly to a local directory
+INSERT OVERWRITE LOCAL DIRECTORY '/tmp/shippers5' 
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '!' 
+
+SELECT * FROM shippers;
+
+! cat /tmp/shippers5;
+
+# We could also append the results of a query to an existing table
+CREATE EXTERNAL TABLE shippers6
+(shipperid int
+,companyname string
+,phone string
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ':' 
+LOCATION '/shippers6';
+
+INSERT INTO shippers6 SELECT * FROM shippers;
+
+dfs -cat /shippers6/* ;
+
+# JSON is a bit trickier in Hive. We must load an external library and
+# use an awkward SerDe name
 ADD JAR /usr/local/hive/hcatalog/share/hcatalog/hive-hcatalog-core.jar;
-create external table regions_json
+
+CREATE EXTERNAL TABLE regions_json
 (regionid int,
 regiondescription string)
 ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
 LOCATION '/regions_json';
 
-create external table shippers4
-(shipperid int
-,companyname string
-,phone string
-)
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/JSON/regions' OVERWRITE INTO TABLE regions_json;
+
+# Note the JSON file we were given called it regionsdescription so just like ORC
+# Parquet and AVRO we need to go with the schema information contained in the files
+# but we could always remap it with a view afterwards
+CREATE VIEW regions_json2 AS SELECT regionid, regiondescription AS regionname FROM regions_json;
+
+select * from regions_json2;
+
+# To just export a result to JSON use INSERT OVERWRITE DIRECTORY with some specs
+INSERT OVERWRITE LOCAL DIRECTORY '/tmp/territories6'
 ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
-LOCATION '/shippers4';
+SELECT territoryid, territoryname FROM territories WHERE regionid = 1;
 
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/JSON/shippers' OVERWRITE INTO TABLE shippers4;
+! cat /tmp/territories6/* ;
+# but the key names are off, this doesn't work well here but in pyspark it's
 
-insert into shippers4 select * from shippers;
-
-# spark-sql
-
-CREATE TEMPORARY VIEW regions_json2
+# Unfortunately JSON tables defined in the Hive catalog don't work in spark sql,
+# so JSON isn't a good format to use for long term storage for a lot of reasons.
+# However, we can still use JSON in spark sql, it's just different syntax
+# Note we don't even need to give it a schema when we do this. Spark is smart
+# enough to dynamically infer the schema
+CREATE TEMPORARY VIEW regions_json3
 USING org.apache.spark.sql.json
 OPTIONS (
   path "/regions_json"
 );
 
-CREATE TEMPORARY VIEW shippers5
+SELECT * FROM regions_json3;
+
+INSERT OVERWRITE LOCAL DIRECTORY '/tmp/regions_json'
 USING org.apache.spark.sql.json
+SELECT * FROM regions_json3;
+
+# run in terminal not spark-sql
+cat /tmp/regions_json
+
+# We can do the same for Parquet. Note here the parquet file we stored has the 
+# description column we ignored when we made the table earlier, but the dynamic
+# schema resolution detected it because we used TEMPORARY VIEW instead of making
+# a table
+CREATE TEMPORARY VIEW categories0
+USING org.apache.spark.sql.parquet
 OPTIONS (
-  path "/shippers4"
+  path "/user/hive/warehouse/northwind.db/categories"
 );
 
+SELECT * FROM categories0;
 
-CREATE TEMPORARY VIEW shippers6
-USING org.apache.spark.sql.avro
+# ORC is easy too
+CREATE TEMPORARY VIEW products0
+USING ORC
 OPTIONS (
-  path "/shippers6"
+  path "/user/hive/warehouse/northwind.db/products"
 );
 
+SELECT * FROM products0;
 
-SELECT * FROM shippers5;
-
-CREATE EXTERNAL TABLE territories4 (territoryid int, territoryname string) LOCATION '/territories4';
-INSERT OVERWRITE TABLE territories4 
-SELECT territoryid, territoryname FROM territories WHERE regionid = 1;
-
-INSERT OVERWRITE DIRECTORY '/tmp/territories5' 
-SELECT territoryid, territoryname FROM territories WHERE regionid = 1;
-
-INSERT OVERWRITE LOCAL DIRECTORY '/tmp/territories6'
-ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
-SELECT territoryid, territoryname FROM territories WHERE regionid = 1;
+# AVRO has to be weird here and we can't use it directly in the spark-sql CLI
+# but when we look at pyspark we will see it's still usable
 
 
+# Here's a trick for only reading the columns we want from CSV format.
+# Create a table to map up to the last column we want, we can use a fake name
+# for columns we don't want
+CREATE TABLE products3(
+  productid int,
+  productname string,
+  ignore1 string, 
+  categoryid int,
+  ignore2 string,
+  price float 
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSV/products' overwrite into table products3;
+
+# Then we can create a view to fix it up and ignore rows and columns we don't want
+CREATE VIEW products4 AS SELECT productid, productname, categoryid, price FROM products3 WHERE productid IS NOT NULL;
+
+SELECT * FROM products4;
+
+# Partitioning tables can greatly improve performance
 CREATE TABLE transactions
 (id int,
-amount double) PARTITIONED BY (Year int)
+amount double) 
+PARTITIONED BY (year int)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY '|' 
 LOCATION '/transactions';
 
-insert into transactions partition(Year=2015) 
-select 1, 100 union all select 2, 200;
+INSERT INTO transactions PARTITION(year=2015) 
+SELECT 1, 100 UNION ALL SELECT 2, 200;
 
-show partitions transactions;
+SHOW PARTITIONS transactions;
 
-insert into transactions partition(Year=2016) select 3, 300 union all select 4, 400;
-show partitions transactions;
+INSERT INTO transactions PARTITION(year=2016) SELECT 3, 300 UNION ALL SELECT 4, 400;
+SHOW PARTITIONS transactions;
 
-insert into transactions partition(Year=2017) select 5, 500 union all select 6, 600;
-show partitions transactions;
+ALTER TABLE transactions ADD partition (year=2017);
+SHOW PARTITIONS transactions;
+INSERT INTO transactions PARTITION(year=2017) SELECT 5, 500 UNION ALL SELECT 6, 600;
 
-alter table transactions drop partition (year=2015);
-alter table transactions add partition (year=2015);
-alter table transactions add partition (year=2016);
-alter table transactions add partition (year=2017);
+ALTER TABLE transactions DROP PARTITION (year=2015);
 
-
+# We could also partition on multiple columns and we get a nested directory structure
 CREATE TABLE transactions2
 (id int,
 amount double) PARTITIONED BY (year int, month int)
 LOCATION '/transactions2';
 
+ALTER TABLE transactions2 ADD PARTITION (year=2015,month=1);
+dfs -ls /transactions2 ;
+dfs -ls /transactions2/year=2015 ;
 
-CREATE EXTERNAL TABLE transactions0
-(id int,
-amount double) PARTITIONED BY (Year int);
-
-insert into transactions0 partition(Year=2015) select 1, 100 union all select 2, 200;
-
-insert into transactions0 partition(Year=2016) select 3, 300 union all select 4, 400;
-
-insert into transactions0 partition(Year=2017) select 5, 500 union all select 6, 600;
-
+# Let's build a partitioned table from some existing data
 CREATE TABLE orders_table (
     orderid smallint,
     customerid varchar(5),
@@ -206,19 +424,13 @@ LOCATION '/orders_table';
 
 LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/orders' overwrite into table orders_table;
 
-create view orders_view as 
-select orderid, customerid, orderdate, cast(substring(cast(orderdate as string), 1, 4) as int) as year 
-from orders_table
-where orderid is not null and customerid is not null;
+# This view will create a year column for us to partition on
+CREATE VIEW orders_view AS 
+SELECT orderid, customerid, orderdate, cast(substring(cast(orderdate as string), 1, 4) as int) AS year 
+FROM orders_table
+WHERE orderid IS NOT NULL AND customerid IS NOT NULL;
 
--- bad
-create view orders_view as 
-select orderid, customerid, cast(orderdate as date) as orderdate
-, cast(left(orderdate, 4) as int) as year
-from orders_table
-where orderid is not null and customerid is not null;
-
-
+# Now let's build a partitioned table
 CREATE EXTERNAL TABLE orders_part (
     orderid smallint,
     customerid varchar(5),
@@ -229,6 +441,8 @@ LOCATION 'hdfs://localhost:9000/orders_part';
 
 SHOW PARTITIONS orders_part;
 
+# First we will insert the data into a partition at a time being careful to 
+# use a WHERE clause and provide the correct partition to add the data to
 INSERT OVERWRITE TABLE orders_part PARTITION (year = 1996)
 SELECT orderid, customerid, orderdate FROM orders_view WHERE year(orderdate) = 1996;
 
@@ -238,16 +452,21 @@ SELECT orderid, customerid, orderdate FROM orders_view WHERE year(orderdate) = 1
 INSERT OVERWRITE TABLE orders_part PARTITION (year = 1998)
 SELECT orderid, customerid, orderdate FROM orders_view WHERE year(orderdate) = 1998;
 
+# run this in spark-sql to see how many records we have in each year
+SELECT year, count(*) FROM orders_part GROUP BY year;
 
-select year, count(*) from orders_part group by year;
-
+# Now let's drop a partition, but because it's an external table it doesn't
+# delete the files
 ALTER TABLE orders_part DROP PARTITION (year=1998);
-select year, count(*) from orders_part group by year;
 
+SELECT year, count(*) FROM orders_part GROUP BY year;
+
+# So if we add the partition back the files are already there
 ALTER TABLE orders_part ADD PARTITION (year=1998);
-select year, count(*) from orders_part group by year;
 
+SELECT year, count(*) FROM orders_part GROUP BY year;
 
+# Let's do this again but this time using dynamic partitioning
 drop table orders_part;
 dfs -rm -r /orders_part;
 
@@ -259,277 +478,94 @@ PARTITIONED BY(year int)
 STORED AS PARQUET
 LOCATION 'hdfs://localhost:9000/orders_part';
 
-
 set hive.exec.dynamic.partition.mode=nonstrict;
 set hive.exec.dynamic.partition=true;
 
 INSERT OVERWRITE TABLE orders_part PARTITION (year)
 SELECT orderid, customerid, orderdate, year FROM orders_view;
 
-
-select year, count(*) from orders_part group by year;
+SELECT year, COUNT(*) FROM orders_part GROUP BY year;
 
 dfs -mv /orders_part/year=1998 /orders1998 ;
+# we moved the file so we get an error when we try to run the SELECT
+SELECT year, COUNT(*) FROM orders_part GROUP BY year;
 
-alter table orders_part drop partition(year=1998);
-
-LOAD DATA INPATH '/orders1998' INTO TABLE orders_part PARTITION(year=1998);
-
-select year, count(*) from orders_part group by year;
+ALTER TABLE orders_part DROP PARTITION(year=1998);
 
 
-CREATE TABLE orderdetails (
-    orderid smallint,
-    productid smallint,
-    unitprice decimal,
-    quantity smallint,
-    discount decimal
-)
-CLUSTERED BY(orderid) SORTED BY (productid) INTO 16 BUCKETS
-ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
-LOCATION '/orderdetails';
-
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/TSV/orderdetails' overwrite into table orderdetails;
-
-dfs -ls /orderdetails;
-
-CREATE TABLE orderdetails1 (
-    orderid smallint,
-    productid smallint,
-    unitprice decimal,
-    quantity smallint,
-    discount decimal
-)
-CLUSTERED BY(orderid) SORTED BY (productid) INTO 16 BUCKETS
-STORED AS PARQUET
-LOCATION '/orderdetails1';
-
-insert into orderdetails1 select * from orderdetails;
-
-dfs -ls /orderdetails0;
-
-select count(*) from orderdetails0 TABLESAMPLE (BUCKET 8 OUT OF 16);
-select count(*) from orderdetails0 TABLESAMPLE (50 PERCENT);
-
-
-
-#mysql 
+# MySQL has a group_concat function that can combine a string column from multiple
+# rows into a bigger string 
 select categoryid, count(*) from products group by categoryid;
 select categoryid, group_concat(productname) from products group by categoryid;
 
+# Hive has a similar idea but instead we can combine them into an array object
+# These are best run in spark-sql for performance
 SELECT regionid, COLLECT_LIST(territoryname) AS territorylist
 FROM territories GROUP BY regionid;
 
-create table territory_list as
-SELECT regionid, COLLECT_LIST(territoryname) AS territorylist
-FROM territories GROUP BY regionid;
-
+# We could get a single string from the array if we want
 SELECT regionid, CONCAT_WS(', ', COLLECT_LIST(territoryname)) AS territorylist
 FROM territories GROUP BY regionid;
 
-SELECT regionid, collect_list(named_struct('territoryid', territoryid, 'territoryname', territoryname)) AS territorylist
+# Turn the results into a table
+CREATE TABLE territory_list as
+SELECT regionid, COLLECT_LIST(territoryname) AS territorylist
 FROM territories GROUP BY regionid;
 
+DESCRIBE territory_list;
+! hadoop fs -cat /user/hive/warehouse/northwind.db/territory_list/*
+
+# That's fine for an array of one single column but what about a more complex shape
+SELECT regionid, COLLECT_LIST(NAMED_STRUCT('territoryid', territoryid, 'territoryname', territoryname)) AS territorylist
+FROM territories GROUP BY regionid;
+
+# What if we want the sub lists sorted, we can use a WITH clause and some new commands
+WITH tmp AS (
+  SELECT * FROM territories DISTRIBUTE BY regionid SORT BY territoryid
+)
+SELECT regionid, COLLECT_LIST(NAMED_STRUCT('territoryid', territoryid, 'territoryname', territoryname)) AS territorylist
+FROM tmp 
+GROUP BY regionid;
+
+WITH tmp AS (
+  SELECT * FROM territories DISTRIBUTE BY regionid SORT BY territoryname
+)
+SELECT regionid, COLLECT_LIST(NAMED_STRUCT('territoryid', territoryid, 'territoryname', territoryname)) AS territorylist
+FROM tmp 
+GROUP BY regionid;
+
+# Let's do a join and collect all together
 CREATE TABLE region_territory AS
-SELECT r.regionid, r.regionname, collect_list(named_struct('territoryid', t.territoryid, 'territoryname', t.territoryname)) AS territorylist
+SELECT r.regionid, r.regionname, COLLECT_LIST(NAMED_STRUCT('territoryid', t.territoryid, 'territoryname', t.territoryname)) AS territorylist
 FROM territories AS t
 JOIN regions AS r ON t.regionid = r.regionid
 GROUP BY r.regionid, r.regionname;
 
 SELECT * FROM region_territory;
 
-
+# What if you have this nested repeating struture and want to return it to flat
+# denormalized shape. Since each element of territorylist field is a string
+# the alias territory refers to an individual string field
 SELECT regionid, territory
-FROM territory_list LATERAL VIEW EXPLODE(territorylist) EXPLODED_TABLE AS territory;
+FROM territory_list LATERAL VIEW EXPLODE(territorylist) AS territory;
 
+# But for this table where we have each element as a structure, then each tab
+# element is an individual structure object
 SELECT regionid, regionname, t
-FROM region_territory LATERAL VIEW EXPLODE(territorylist) EXPLODED_TABLE AS t;
+FROM region_territory LATERAL VIEW EXPLODE(territorylist) AS t;
 
-SELECT regionid, regionname, t.territoryid, t.territcoryname
-FROM territory_region LATERAL VIEW EXPLODE(territorylist) EXPLODED_TABLE AS t;
+# But we can flatten it out but using dot syntax similar to field names in OO languages
+SELECT regionid, regionname, t.territoryid, t.territoryname
+FROM region_territory LATERAL VIEW EXPLODE(territorylist) AS t;
 
-
-
-
-create table categories
-(categoryid tinyint
-,categoryname string
-)
-ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
-
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/categories' OVERWRITE INTO TABLE categories;
-
-create table products
-(productid int
-,productname string
-,categoryid int
-,unitprice decimal(5,2)
-,unitsinstock int
-)
-stored as parquet;
-
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/PARQUET/products' OVERWRITE INTO TABLE products;
-
-insert overwrite directory '/newcategories' 
-ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
-select * from categories where categoryid is not null;
-
-load data inpath '/newcategories' overwrite into table categories;
-dfs -rm -r /newcategories;
+INSERT OVERWRITE LOCAL DIRECTORY '/tmp/region_list'
+USING org.apache.spark.sql.json
+SELECT regionid, collect_list(territoryname) AS territories
+FROM territories
+GROUP BY regionid;
 
 
-insert overwrite directory '/newproducts' stored as parquet select * from products;
-
-
-
-insert overwrite local directory '/tmp/shippers'
-ROW FORMAT DELIMITED FIELDS TERMINATED BY '|' 
-select * from shippers1;
-
-create table shippers_orc
-stored as orc
-as
-select companyname, shipperid, phone
-from shippers1;
-
-create table region_territory
-ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
-as
-select r.regionid, r.regionname
-, t.territoryid, t.territoryname 
-from regions as r
-join territories as t on r.regionid = t.regionid
-order by r.regionid, t.territoryid;
-
-
-
-
-customerid, orderdate, orderid\00\00
-orderdetails everything except discount\00r
-customerid, companyname, country\00s
-join all three together to make a flat result\00i
-group into customer and list of orders\00r
-group by productid, array(customer and product)
-
-
-
-
-select * from regions as r join territories as t on r.regionid = t.regionid order by r.regionid, t.territoryid;
-
-
-create table usstates
-(stateid int
-,statename string
-,stateabbr string
-)
-ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' ;
-
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSV/usstates' OVERWRITE INTO TABLE usstates;
-
-
-create external table usstates2
-(stateid int
-,statename string
-,ignore1 char(1)
-,stateregion string
-)
-ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
-location '/user/hive/warehouse/northwind.db/usstates';
-
-create view usstates3 as select stateid, statename, stateregion from usstates2 where stateid is not null;
-
-create table usstates4 as select * from usstates3;
-
-create table usstates5 
-ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
-as
-select * from usstates3
-
-
-
-create table usstates5 
-STORED AS AVRO
-as
-select * from usstates3;
-
-
-
-
-create external table usstates6
-(stateid int
-,statename string
-,stateregion string
-,stateabbr string
-)
-STORED AS AVRO
-LOCATION '/usstates6';
-
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/usstates' OVERWRITE INTO TABLE usstates6;
-
-create external table usstates6
-(stateid int
-,state_region string
-,statename string
-)
-STORED AS AVRO
-LOCATION '/usstates6';
-
-
-
-create external table usstates7
-(Stateid int
-,name string
-,stateregion string
-)
-STORED AS AVRO
-LOCATION '/user/hive/warehouse/northwind.db/usstates5';
-
-
-CREATE TABLE IF NOT EXISTS usstates8
-ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
-WITH SERDEPROPERTIES (
-   "separatorChar" = ",",
-   "quoteChar"     = "'",
-   "escapeChar"    = "\\"
-)
-AS
-select * from usstates3;
-
-
-INSERT OVERWRITE LOCAL DIRECTORY '/tmp/usstates8' 
-ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
-WITH SERDEPROPERTIES (
-   "separatorChar" = ",",
-   "quoteChar"     = "'",
-   "escapeChar"    = "\\"
-)
-select * from usstates3;
-
-create table territories2
-ROW FORMAT DELIMITED FIELDS TERMINATED BY '|'
-AS SELECT * FROM territories;
-
-create table usstates10
-ROW FORMAT DELIMITED FIELDS TERMINATED BY '|'
-AS SELECT * FROM usstates3;
-
-
-create table usstates11
-ROW FORMAT DELIMITED FIELDS TERMINATED BY '|'
-LOCATION '/usstates11'
-AS SELECT * FROM usstates3;
-
-
-create external table IF NOT EXISTS usstates12
-(id int
-,name string
-,region string
-)
-STORED AS AVRO
-LOCATION '/usstates12';
-
-
-
+# More examples of nested repeatings using CREATE TABLE syntax
 CREATE TABLE Person(
 PersonID int,
 Name string,
@@ -545,7 +581,7 @@ UNION ALL SELECT 2, 'mary', ARRAY('C++', 'Java', 'Hive');
 INSERT INTO Person 
 SELECT 3, 'han', ARRAY('Java', 'Python', 'Java', 'C++');
 
-
+# in hive
 CREATE TABLE Person2(
 PersonID int,
 Name string,
@@ -554,12 +590,13 @@ Skills ARRAY<string>
 ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
 location '/person2';
 
-INSERT INTO Person2
+INSERT INTO person2
 SELECT 1, 'joey', ARRAY('Java', 'Python', 'Hadoop') 
 UNION ALL SELECT 2, 'mary', ARRAY('C++', 'Java', 'Hive');
+! hadoop fs -cat /person2/* ;
 
-
-CREATE TABLE Person3(
+# In spark-sql
+CREATE TABLE person3(
 PersonID int,
 Name string,
 Skills ARRAY<string>
@@ -567,97 +604,37 @@ Skills ARRAY<string>
 USING org.apache.spark.sql.json
 OPTIONS (path "/person3");
 
-create table regions_list
-USING org.apache.spark.sql.json
-OPTIONS (path "/regions_list")
-as
-select regionid, collect_list(territoryname) as territories
-from territories
-group by regionid;
+INSERT INTO person3
+SELECT 1, 'joey', ARRAY('Java', 'Python', 'Hadoop') 
+UNION ALL SELECT 2, 'mary', ARRAY('C++', 'Java', 'Hive');
+! hadoop fs -cat /person3/* ;
 
-
-insert overwrite local directory '/tmp/region_list'
-USING org.apache.spark.sql.json
-select regionid, collect_list(territoryname) as territories
-from territories
-group by regionid;
-
-
-
-CREATE TABLE Person4(
-PersonID int,
-Name string,
-Skills ARRAY<string>
-)
-USING parquet
-OPTIONS (path "/person4");
-
-CREATE TABLE Person5(
-PersonID int,
-Name string,
-Skills ARRAY<string>
-)
-STORED AS parquet
-LOCATION "/person5";
-
-
-
-CREATE TEMPORARY VIEW person3
-USING org.apache.spark.sql.json
-OPTIONS (
-  path "/person3"
-);
-
-
-
-select personid, name, skills[0] as skill1, skills[size(skills)-1] from person;
-
+# We can use indexer notation like in Python to get elements of an array
+SELECT personid, name, skills[0] AS skill1, skills[size(skills)-1] FROM person;
 
 SELECT PersonID, Name, SkillName 
-FROM Person LATERAL VIEW EXPLODE(Skills) EXPLODED_TABLE AS SkillName;
+FROM Person LATERAL VIEW EXPLODE(Skills) AS SkillName;
 
-with x as (select personid, name, skill from person lateral view explode(skills) as skill)
-select skill, count(*) as cnt from x group by skill;
+# We could explode and flatten a nested table to dernomalized and regroup it on
+# another field
+WITH x AS 
+(SELECT personid, name, skill 
+FROM person LATERAL VIEW EXPLODE(skills) AS skill)
+SELECT skill, COUNT(*) AS cnt FROM x GROUP BY skill;
 
-select skill, count(*) as cnt 
-from (select personid, name, skill from person lateral view explode(skills) as skill) as x 
-group by skill;
+# or use derived table syntax
+SELECT skill, COUNT(*) AS cnt 
+FROM (SELECT personid, name, skill FROM person LATERAL VIEW EXPLODE(skills) AS skill) as x 
+GROUP BY skill;
 
-create temporary view x as select personid, name, skill from person lateral view explode(skills) as skill;
-select skill, count(*) as cnt from x group by skill;
+# Temporary views are cool if you want to reuse a base query several times without
+# having to cut and past the WITH block
+CREATE TEMPORARY VIEW x AS 
+SELECT personid, name, skill 
+FROM person LATERAL VIEW EXPLODE(skills) AS skill;
+SELECT skill, count(*) AS cnt FROM x GROUP BY skill;
 
-
-
-create table skills_denormalized as
-SELECT PersonID, Name, SkillName 
-FROM Person LATERAL VIEW EXPLODE(Skills) EXPLODED_TABLE AS SkillName;
-
-select personid, name, collect_set(skillname) as skills
-from skills_denormalized
-group by personid, name;
-
-
-create table skills_nested as
-select personid, name, collect_set(skillname) as skills
-from skills_denormalized
-group by personid, name;
-
-
-select regionid, collect_list(territoryname) as territories
-from territories
-group by regionid;
-
-create table territories_list as
-select regionid, collect_list(territoryname) as territories
-from territories
-group by regionid;
-
-
-select regionid, t
-from territories_list lateral view explode(territories) exploded_table as t;
-
-
-
+# Here's how we'd create a table with a struct
 CREATE TABLE complex1(
 id int,
 name string,
@@ -666,6 +643,7 @@ location struct<lat:decimal(4,2), lng:decimal(4,2), city:string>
 INSERT INTO table complex1
 select 1, 'joey', NAMED_STRUCT('lat', 25.81, 'lng', -80.19, 'city', 'Miami');
 
+# But usually when we use a struct it's also an array
 CREATE TABLE complex2(
 id int,
 name string,
@@ -690,7 +668,6 @@ create table complex3 as
 select id, name, l.lat, l.lng, l.city
 from complex2 lateral view explode(locations) exploded_table as l;
 
-
 select id, name, named_struct('lat', lat, 'lng', lng, 'city', city) as location
 from complex3;
 
@@ -698,119 +675,44 @@ select id, name, collect_list(named_struct('lat', lat, 'lng', lng, 'city', city)
 from complex3
 group by id, name;
 
+----------------------------------------
+clustering doesn't seem to work
+# Let's try clustering
+set hive.enforce.bucketing = true;
 
-SELECT r.RegionID, r.RegionName
-   , COLLECT_SET(NAMED_STRUCT("TerritoryID", TerritoryID, "TerritoryName", TerritoryName)) AS TerritoryList
-FROM Regions AS r
-JOIN Territories AS t ON r.RegionID = t.RegionID
-GROUP BY r.RegionID, r.RegionName
-ORDER BY r.RegionID;
-
-
-
-
-
-
-
-
-
-create external table products(
-  productid int,
-  productname string,
-  ignore1 string, 
-  categoryid int,
-  ignore2 string,
-  price float 
+CREATE TABLE orderdetails (
+    orderid smallint,
+    productid smallint,
+    unitprice decimal,
+    quantity smallint,
+    discount decimal
 )
-ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
-LOCATION '/products'
+CLUSTERED BY(orderid) SORTED BY (productid) INTO 16 BUCKETS
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
+LOCATION '/orderdetails';
 
-select productid, productname, categoryid, price from products where productid is not null limit 10;
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/TSV/orderdetails' overwrite into table orderdetails;
 
-create external table products(
-  productid int,
-  productname string,
-  ignore1 string, 
-  categoryid int,
-  ignore2 string,
-  price float 
+dfs -ls /orderdetails;
+dfs -cat /orderdetails/000000_0;
+
+# Notice how it breaks up the data into 16 file based on the orderid
+
+CREATE TABLE orderdetails1 (
+    orderid smallint,
+    productid smallint,
+    unitprice decimal,
+    quantity smallint,
+    discount decimal
 )
-ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
-LOCATION '/products'
-TBLPROPERTIES("skip.header.line.count"="1");
+CLUSTERED BY(orderid) SORTED BY (productid) INTO 16 BUCKETS
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '|'
+LOCATION '/orderdetails1';
 
-create view products2 as select productid, productname, categoryid, price from products where productid is not null;
+INSERT INTO orderdetails1 SELECT * FROM orderdetails;
 
-AVRO version customers
-name of company city, region, country
+dfs -ls /orderdetails1;
 
-
-write them out as | separated file
-
-
-
-
-
-
-
-
-
-
-
-
-
-ADD JAR /usr/local/hive/hcatalog/share/hcatalog/hive-hcatalog-core.jar;
-
-create external table customers
-(companyname string
-, city string
-, region string
-, country string)
-stored as avro
-location '/customers';
-
-load data local inpath '/class/datasets/northwind/AVRO/customers' 
-overwrite into table customers;
-
-insert overwrite local directory '/tmp/customers' 
-ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
-select * from customers;
-
-
-
-
-CREATE TABLE territory_list
-USING org.apache.spark.sql.json
-OPTIONS (
-  path "/territory_list"
-) as
-select regionid, collect_list(territoryname) as terrtitories from territories group by regionid;
-
-
-
-CREATE TABLE regions_denorm
-option (path "/region_denorm")
-as
-select r.regionid, r.regionname,  t.territoryid, t.territoryname from regions as r join territories as t on r.regionid = t.regionid;
-
-CREATE TABLE regions_nested
-option (path "/region_dnested")
-as
-select r.regionid, r.regionname, collect_list(named_struct('territoryid', t.territoryid, 'territoryname', t.territoryname)) as territories from regions as r join territories as t on r.regionid = t.regionid group by r.regionid, r.regionname;
-
-
--- pyspark
-r = spark.read.table('regions')
-r = spark.sql('select * from regions where regionid < 5')
-r.show()
-spark.read.table('regions').where('regionid < 5').show()
-
-spark.read.csv('file:///class/datasets/northwind/CSVHeaders/products', header=True, inferSchema=True)
-p = spark.read.csv('file:///class/datasets/northwind/CSVHeaders/products', header=True, inferSchema=True)
-p.where('unitprice < 10').show()
-
-p.createOrReplaceTempView('product')
-spark.sql('select productid, productname, unitprice from product where unitprice < 10').show()
-spark.sql('select productid, productname, unitprice from product where unitprice < 10').orderBy('unitprice').show()
-
-
+select count(*) from orderdetails0 TABLESAMPLE (BUCKET 8 OUT OF 16);
+select count(*) from orderdetails0 TABLESAMPLE (50 PERCENT);
+--------------------------------
