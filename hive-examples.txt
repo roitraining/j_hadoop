@@ -675,7 +675,7 @@ select id, name, collect_list(named_struct('lat', lat, 'lng', lng, 'city', city)
 from complex3
 group by id, name;
 
-----------------------------------------
+-----------------------------------------
 clustering doesn't seem to work
 # Let's try clustering
 set hive.enforce.bucketing = true;
