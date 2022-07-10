@@ -691,7 +691,7 @@ CLUSTERED BY(orderid) SORTED BY (productid) INTO 16 BUCKETS
 ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
 LOCATION '/orderdetails';
 
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/TSV/orderdetails' overwrite into table orderdetails;
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/TSV/orderdetails' OVERWRITE INTO TABLE orderdetails;
 
 dfs -ls /orderdetails;
 dfs -cat /orderdetails/000000_0;
