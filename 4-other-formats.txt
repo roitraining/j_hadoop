@@ -1,0 +1,216 @@
+# How about other file formats. Use the Hive CLI and make sure to be in northwind
+CREATE TABLE usstates
+(stateid int
+,statename string
+,stateabbr string
+,stateregion string
+)
+STORED AS AVRO;
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/usstates' OVERWRITE INTO TABLE usstates;
+
+SELECT * FROM usstates;
+
+# We could ignore fields we don't want. AVRO uses the field names inside the inferSchema
+# in the file header to determine what to match to your table definition
+CREATE TABLE usstates2
+(state_id int
+,stateabbr string
+,statename string
+)
+STORED AS AVRO;
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/usstates' OVERWRITE INTO TABLE usstates2;
+
+SELECT * FROM usstates2;
+
+# So if you put a column name that doesn't match to what's in the interal schema 
+# of the file it doesn't match
+CREATE TABLE shippers
+(shipperid int
+,company string
+,phone string
+)
+STORED AS AVRO;
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/shippers' OVERWRITE INTO TABLE shippers;
+
+SELECT * FROM shippers;
+
+# Let's drop it and create it properly. 
+DROP TABLE shippers;
+
+CREATE EXTERNAL TABLE shippers
+(shipperid int
+,companyname string
+,phone string
+)
+STORED AS AVRO;
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/shippers' OVERWRITE INTO TABLE shippers;
+
+SELECT * FROM shippers;
+
+# Parquet format is similar, except the data is stored as columns instead of rows
+# sometimes this is more efficient.
+CREATE TABLE categories
+(categoryid int
+,categoryname string
+)
+STORED AS PARQUET;
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/PARQUET/categories' OVERWRITE INTO TABLE categories;
+
+SELECT * FROM categories;
+
+# ORC is also a column store and the syntax is similar
+CREATE TABLE products
+(productid int
+,productname string
+,categoryid int
+,unitprice decimal(5,2)
+,unitsinstock int
+)
+STORED AS ORC;
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/ORC/products' OVERWRITE INTO TABLE products;
+
+SELECT * FROM products;
+
+# We can also copy the results of a SQL query to another table using the 
+# familiar CREATE TABLE AS command
+CREATE TABLE shippers2
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '|' 
+LOCATION '/shippers2'
+AS
+SELECT * FROM shippers;
+
+dfs -cat /shippers2/* ;
+
+# But what if we want the results of a query but don't want the metadata saved
+# in the Hive metastore
+INSERT OVERWRITE DIRECTORY '/shippers3' 
+SELECT * FROM shippers;
+
+dfs -cat /shippers3/*;
+
+# That stored things in Hive native format, but we could add in additional clauses
+# just like in CREATE TABLE, to control the output format
+INSERT OVERWRITE DIRECTORY '/shippers4' 
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ';' 
+
+SELECT * FROM shippers;
+
+dfs -cat /shippers4/*;
+
+# Or copy it directly to a local directory
+INSERT OVERWRITE LOCAL DIRECTORY '/tmp/shippers5' 
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '!' 
+
+SELECT * FROM shippers;
+
+! cat /tmp/shippers5;
+
+# We could also append the results of a query to an existing table
+CREATE EXTERNAL TABLE shippers6
+(shipperid int
+,companyname string
+,phone string
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ':' 
+LOCATION '/shippers6';
+
+INSERT INTO shippers6 SELECT * FROM shippers;
+
+dfs -cat /shippers6/* ;
+
+# JSON is a bit trickier in Hive. We must load an external library and
+# use an awkward SerDe name
+ADD JAR /usr/local/hive/hcatalog/share/hcatalog/hive-hcatalog-core.jar;
+
+CREATE EXTERNAL TABLE regions_json
+(regionid int,
+regiondescription string)
+ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
+LOCATION '/regions_json';
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/JSON/regions' OVERWRITE INTO TABLE regions_json;
+
+# Note the JSON file we were given called it regionsdescription so just like ORC
+# Parquet and AVRO we need to go with the schema information contained in the files
+# but we could always remap it with a view afterwards
+CREATE VIEW regions_json2 AS SELECT regionid, regiondescription AS regionname FROM regions_json;
+
+select * from regions_json2;
+
+# To just export a result to JSON use INSERT OVERWRITE DIRECTORY with some specs
+INSERT OVERWRITE LOCAL DIRECTORY '/tmp/territories6'
+ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
+SELECT territoryid, territoryname FROM territories WHERE regionid = 1;
+
+! cat /tmp/territories6/* ;
+# but the key names are off, this doesn't work well here but in pyspark it's
+
+# Unfortunately JSON tables defined in the Hive catalog don't work in spark sql,
+# so JSON isn't a good format to use for long term storage for a lot of reasons.
+# However, we can still use JSON in spark sql, it's just different syntax
+# Note we don't even need to give it a schema when we do this. Spark is smart
+# enough to dynamically infer the schema
+CREATE TEMPORARY VIEW regions_json3
+USING org.apache.spark.sql.json
+OPTIONS (
+  path "/regions_json"
+);
+
+SELECT * FROM regions_json3;
+
+INSERT OVERWRITE LOCAL DIRECTORY '/tmp/regions_json'
+USING org.apache.spark.sql.json
+SELECT * FROM regions_json3;
+
+# run in terminal not spark-sql
+cat /tmp/regions_json
+
+# We can do the same for Parquet. Note here the parquet file we stored has the 
+# description column we ignored when we made the table earlier, but the dynamic
+# schema resolution detected it because we used TEMPORARY VIEW instead of making
+# a table
+CREATE TEMPORARY VIEW categories0
+USING org.apache.spark.sql.parquet
+OPTIONS (
+  path "/user/hive/warehouse/northwind.db/categories"
+);
+
+SELECT * FROM categories0;
+
+# ORC is easy too
+CREATE TEMPORARY VIEW products0
+USING ORC
+OPTIONS (
+  path "/user/hive/warehouse/northwind.db/products"
+);
+
+SELECT * FROM products0;
+
+# AVRO has to be weird here and we can't use it directly in the spark-sql CLI
+# but when we look at pyspark we will see it's still usable
+
+
+# Here's a trick for only reading the columns we want from CSV format.
+# Create a table to map up to the last column we want, we can use a fake name
+# for columns we don't want
+CREATE TABLE products3(
+  productid int,
+  productname string,
+  ignore1 string, 
+  categoryid int,
+  ignore2 string,
+  price float 
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSV/products' overwrite into table products3;
+
+# Then we can create a view to fix it up and ignore rows and columns we don't want
+CREATE VIEW products4 AS SELECT productid, productname, categoryid, price FROM products3 WHERE productid IS NOT NULL;
+
+SELECT * FROM products4;

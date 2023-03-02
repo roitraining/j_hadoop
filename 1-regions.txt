@@ -1,0 +1,97 @@
+# Make sure Hadoop is running by running start-hadoop
+# If anything is corrupt run format-namenode
+
+# Put the regions folder into HDFS
+hadoop fs -put /class/datasets/northwind/CSV/regions /regions
+
+# Start Hive CLI
+hive
+
+# Create a table 
+CREATE TABLE regions(regionid int, regionname string)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
+LINES TERMINATED BY '\n' 
+STORED AS TEXTFILE
+LOCATION '/regions';
+
+# Query the table
+SELECT * FROM regions;
+
+# Drop the table
+DROP table regions;
+
+# Note the HDFS folder is deleted also
+hadoop fs -ls /
+
+# Recreate the table, this time with no location
+CREATE TABLE regions(regionid int, regionname string)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' ;
+
+# Use the dfs command to see where it created it
+dfs -ls /user/hive/warehouse ;
+
+dfs -ls /user/hive/warehouse/regions ;
+
+# Select from it and note it's empty
+SELECT * FROM regions;
+
+# Let's put data into the folder
+! hadoop fs -put /class/datasets/northwind/CSV/regions/* /user/hive/warehouse/regions ;
+
+# Select from it and now there's data
+SELECT * FROM regions;
+
+# Use DESCRIBE to learn a little about the tables
+DESCRIBE regions;
+
+DESCRIBE FORMATTED regions;
+
+DESCRIBE FORMATTED regions2;
+
+# Let's drop the table again and confirm the regions folder is gone
+DROP table regions;
+
+dfs -ls /user/hive/warehouse ;
+
+# Create a northwind database
+create database northwind;
+
+use northwind;
+
+# Recreate regions in the northwind database
+CREATE TABLE regions(regionid int, regionname string)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' ;
+
+# Confirm the new folder structure
+dfs -ls /user/hive/warehouse ;
+
+dfs -ls /user/hive/warehouse/northwind.db ;
+
+# Instead of putting the files with hadoop fs commands, try a new way
+# Let's also try a file with headers in first row
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/regions' OVERWRITE INTO TABLE regions;
+
+SELECT * FROM regions;
+
+# Note how we have an extra row since the first line is treated as a data row
+# We can eliminate it with a WHERE clause
+SELECT * FROM regions WHERE regionid IS NOT NULL;
+
+# Sometimes people prefer to use TBLPROPERTIES
+CREATE EXTERNAL TABLE regions2(regionid int, regionname string)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
+LOCATION '/user/hive/warehouse/classroom.db/regions'
+TBLPROPERTIES("skip.header.line.count"="1");
+
+SELECT * FROM regions2;
+
+# The TBLPROPERTIES skipped the first row of the file, 
+# We defined a second table definition pointing to the same location 
+# as the other table, but EXTERNAL means don't delete the files when 
+# we DROP the table
+DROP TABLE regions2;
+
+# Could also create a view to clean up anything in the table
+CREATE VIEW regions1 AS SELECT * FROM regions WHERE regionid IS NOT NULL AND regionname IS NOT NULL;
+
+SELECT * FROM regions1;

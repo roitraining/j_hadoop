@@ -1,0 +1,41 @@
+# Try some more complex queries like a JOIN and GROUP BY
+SELECT * FROM regions AS r JOIN territories AS t ON r.regionid = t.regionid;
+
+SELECT regionid, COUNT(*) FROM territories GROUP BY regionid;
+
+# It takes a lot longer because it has to do not only MAP operations but also
+# SHUFFLE and REDUCE operations.
+# Launch another terminal window and run spark-sql, the run the following queries
+USE northwind;
+
+SELECT * FROM regions AS r JOIN territories AS t ON r.regionid = t.regionid;
+
+SELECT regionid, COUNT(*) FROM territories GROUP BY regionid;
+
+# They run a lot faster because Spark is a better execution engine.
+# The table definitions are stored in the metastore inside MySQL.
+# Hive CLI simply uses the MapReduce Engine which is slow, 
+# whereas spark-sql uses the spark engine which is faster.
+# For the most part they are completely code compatible but there are some 
+# extensions to the Spark syntax and a few things you do differently here and there.
+
+# This could also be controlled in the script with the following commands:
+set hive.execution.engine=mr;
+set hive.execution.engine=spark;
+# but for some reason the spark engine isn't working right on this particular 
+# VM when using the Hive CLI, so we can just switch between the two different 
+# CLI windows
+
+# What happens if we put bad data into a folder. Take a look at this file
+!cat /class/regions2.csv;
+
+LOAD DATA LOCAL INPATH '/class/regions2.csv' INTO TABLE regions;
+
+SELECT * FROM regions;
+
+# Note how the extra column for row 6 is ignored
+# row 7 had nothing after the comma so its regionname is an empty string
+# row 8 has an empty string and ignores the third column
+# row 9 didn't even have a comma so it has NULL for the regionname
+# row 10 the first column would not parse to int so NULL was returned
+# row 11 is a phantom row from the final \n at the end of the file

@@ -1,0 +1,181 @@
+# MySQL has a group_concat function that can combine a string column from multiple
+# rows into a bigger string 
+select categoryid, count(*) from products group by categoryid;
+select categoryid, group_concat(productname) from products group by categoryid;
+
+# Hive has a similar idea but instead we can combine them into an array object
+# These are best run in spark-sql for performance
+SELECT regionid, COLLECT_LIST(territoryname) AS territorylist
+FROM territories GROUP BY regionid;
+
+# We could get a single string from the array if we want
+SELECT regionid, CONCAT_WS(', ', COLLECT_LIST(territoryname)) AS territorylist
+FROM territories GROUP BY regionid;
+
+# Turn the results into a table
+CREATE TABLE territory_list as
+SELECT regionid, COLLECT_LIST(territoryname) AS territorylist
+FROM territories GROUP BY regionid;
+
+DESCRIBE territory_list;
+! hadoop fs -cat /user/hive/warehouse/northwind.db/territory_list/*
+
+# That's fine for an array of one single column but what about a more complex shape
+SELECT regionid, COLLECT_LIST(NAMED_STRUCT('territoryid', territoryid, 'territoryname', territoryname)) AS territorylist
+FROM territories GROUP BY regionid;
+
+# What if we want the sub lists sorted, we can use a WITH clause and some new commands
+WITH tmp AS (
+  SELECT * FROM territories DISTRIBUTE BY regionid SORT BY territoryid
+)
+SELECT regionid, COLLECT_LIST(NAMED_STRUCT('territoryid', territoryid, 'territoryname', territoryname)) AS territorylist
+FROM tmp 
+GROUP BY regionid;
+
+WITH tmp AS (
+  SELECT * FROM territories DISTRIBUTE BY regionid SORT BY territoryname
+)
+SELECT regionid, COLLECT_LIST(NAMED_STRUCT('territoryid', territoryid, 'territoryname', territoryname)) AS territorylist
+FROM tmp 
+GROUP BY regionid;
+
+# Let's do a join and collect all together
+CREATE TABLE region_territory AS
+SELECT r.regionid, r.regionname, COLLECT_LIST(NAMED_STRUCT('territoryid', t.territoryid, 'territoryname', t.territoryname)) AS territorylist
+FROM territories AS t
+JOIN regions AS r ON t.regionid = r.regionid
+GROUP BY r.regionid, r.regionname;
+
+SELECT * FROM region_territory;
+
+# What if you have this nested repeating struture and want to return it to flat
+# denormalized shape. Since each element of territorylist field is a string
+# the alias territory refers to an individual string field
+SELECT regionid, territory
+FROM territory_list LATERAL VIEW EXPLODE(territorylist) AS territory;
+
+# But for this table where we have each element as a structure, then each tab
+# element is an individual structure object
+SELECT regionid, regionname, t
+FROM region_territory LATERAL VIEW EXPLODE(territorylist) AS t;
+
+# But we can flatten it out but using dot syntax similar to field names in OO languages
+SELECT regionid, regionname, t.territoryid, t.territoryname
+FROM region_territory LATERAL VIEW EXPLODE(territorylist) AS t;
+
+INSERT OVERWRITE LOCAL DIRECTORY '/tmp/region_list'
+USING org.apache.spark.sql.json
+SELECT regionid, collect_list(territoryname) AS territories
+FROM territories
+GROUP BY regionid;
+
+
+# More examples of nested repeatings using CREATE TABLE syntax
+CREATE TABLE Person(
+PersonID int,
+Name string,
+Skills ARRAY<string>
+)
+location '/person';
+
+INSERT INTO Person 
+SELECT 1, 'joey', ARRAY('Java', 'Python', 'Hadoop') 
+UNION ALL SELECT 2, 'mary', ARRAY('C++', 'Java', 'Hive');
+
+
+INSERT INTO Person 
+SELECT 3, 'han', ARRAY('Java', 'Python', 'Java', 'C++');
+
+# in hive
+CREATE TABLE Person2(
+PersonID int,
+Name string,
+Skills ARRAY<string>
+)
+ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
+location '/person2';
+
+INSERT INTO person2
+SELECT 1, 'joey', ARRAY('Java', 'Python', 'Hadoop') 
+UNION ALL SELECT 2, 'mary', ARRAY('C++', 'Java', 'Hive');
+! hadoop fs -cat /person2/* ;
+
+# In spark-sql
+CREATE TABLE person3(
+PersonID int,
+Name string,
+Skills ARRAY<string>
+)
+USING org.apache.spark.sql.json
+OPTIONS (path "/person3");
+
+INSERT INTO person3
+SELECT 1, 'joey', ARRAY('Java', 'Python', 'Hadoop') 
+UNION ALL SELECT 2, 'mary', ARRAY('C++', 'Java', 'Hive');
+! hadoop fs -cat /person3/* ;
+
+# We can use indexer notation like in Python to get elements of an array
+SELECT personid, name, skills[0] AS skill1, skills[size(skills)-1] FROM person;
+
+SELECT PersonID, Name, SkillName 
+FROM Person LATERAL VIEW EXPLODE(Skills) AS SkillName;
+
+# We could explode and flatten a nested table to dernomalized and regroup it on
+# another field
+WITH x AS 
+(SELECT personid, name, skill 
+FROM person LATERAL VIEW EXPLODE(skills) AS skill)
+SELECT skill, COUNT(*) AS cnt FROM x GROUP BY skill;
+
+# or use derived table syntax
+SELECT skill, COUNT(*) AS cnt 
+FROM (SELECT personid, name, skill FROM person LATERAL VIEW EXPLODE(skills) AS skill) as x 
+GROUP BY skill;
+
+# Temporary views are cool if you want to reuse a base query several times without
+# having to cut and past the WITH block
+CREATE TEMPORARY VIEW x AS 
+SELECT personid, name, skill 
+FROM person LATERAL VIEW EXPLODE(skills) AS skill;
+SELECT skill, count(*) AS cnt FROM x GROUP BY skill;
+
+# Here's how we'd create a table with a struct
+CREATE TABLE complex1(
+id int,
+name string,
+location struct<lat:decimal(4,2), lng:decimal(4,2), city:string>
+);
+INSERT INTO table complex1
+select 1, 'joey', NAMED_STRUCT('lat', 25.81, 'lng', -80.19, 'city', 'Miami');
+
+# But usually when we use a struct it's also an array
+CREATE TABLE complex2(
+id int,
+name string,
+locations array<struct<lat:decimal(4,2), lng:decimal(4,2), city:string>>
+);
+
+INSERT INTO table complex2
+select 1, 'joey', ARRAY(
+NAMED_STRUCT('lat', 25.81, 'lng', -80.19, 'city', 'Miami'),
+NAMED_STRUCT('lat', 25.81, 'lng', -80.19, 'city', 'DC'));
+
+SELECT * FROM complex2;
+
+
+select id, name, l
+from complex2 lateral view explode(locations) exploded_table as l;
+
+select id, name, l.lat, l.lng, l.city
+from complex2 lateral view explode(locations) exploded_table as l;
+
+create table complex3 as
+select id, name, l.lat, l.lng, l.city
+from complex2 lateral view explode(locations) exploded_table as l;
+
+select id, name, named_struct('lat', lat, 'lng', lng, 'city', city) as location
+from complex3;
+
+select id, name, collect_list(named_struct('lat', lat, 'lng', lng, 'city', city)) as locations
+from complex3
+group by id, name;

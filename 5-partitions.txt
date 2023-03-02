@@ -1,0 +1,111 @@
+# Partitioning tables can greatly improve performance
+CREATE TABLE transactions
+(id int,
+amount double) 
+PARTITIONED BY (year int)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '|' 
+LOCATION '/transactions';
+
+INSERT INTO transactions PARTITION(year=2015) 
+SELECT 1, 100 UNION ALL SELECT 2, 200;
+
+SHOW PARTITIONS transactions;
+
+INSERT INTO transactions PARTITION(year=2016) SELECT 3, 300 UNION ALL SELECT 4, 400;
+SHOW PARTITIONS transactions;
+
+ALTER TABLE transactions ADD partition (year=2017);
+SHOW PARTITIONS transactions;
+INSERT INTO transactions PARTITION(year=2017) SELECT 5, 500 UNION ALL SELECT 6, 600;
+
+ALTER TABLE transactions DROP PARTITION (year=2015);
+
+# We could also partition on multiple columns and we get a nested directory structure
+CREATE TABLE transactions2
+(id int,
+amount double) PARTITIONED BY (year int, month int)
+LOCATION '/transactions2';
+
+ALTER TABLE transactions2 ADD PARTITION (year=2015,month=1);
+dfs -ls /transactions2 ;
+dfs -ls /transactions2/year=2015 ;
+
+# Let's build a partitioned table from some existing data
+CREATE TABLE orders_table (
+    orderid smallint,
+    customerid varchar(5),
+    skip0 char(1),
+    orderdate date)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+LOCATION '/orders_table';
+
+LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSVHeaders/orders' overwrite into table orders_table;
+
+# This view will create a year column for us to partition on
+CREATE VIEW orders_view AS 
+SELECT orderid, customerid, orderdate, cast(substring(cast(orderdate as string), 1, 4) as int) AS year 
+FROM orders_table
+WHERE orderid IS NOT NULL AND customerid IS NOT NULL;
+
+# Now let's build a partitioned table
+CREATE EXTERNAL TABLE orders_part (
+    orderid smallint,
+    customerid varchar(5),
+    orderdate date)
+PARTITIONED BY(year int)
+STORED AS PARQUET
+LOCATION 'hdfs://localhost:9000/orders_part';
+
+SHOW PARTITIONS orders_part;
+
+# First we will insert the data into a partition at a time being careful to 
+# use a WHERE clause and provide the correct partition to add the data to
+INSERT OVERWRITE TABLE orders_part PARTITION (year = 1996)
+SELECT orderid, customerid, orderdate FROM orders_view WHERE year(orderdate) = 1996;
+
+INSERT INTO orders_part PARTITION (year = 1997)
+SELECT orderid, customerid, orderdate FROM orders_view WHERE year(orderdate) = 1997;
+
+INSERT OVERWRITE TABLE orders_part PARTITION (year = 1998)
+SELECT orderid, customerid, orderdate FROM orders_view WHERE year(orderdate) = 1998;
+
+# run this in spark-sql to see how many records we have in each year
+SELECT year, count(*) FROM orders_part GROUP BY year;
+
+# Now let's drop a partition, but because it's an external table it doesn't
+# delete the files
+ALTER TABLE orders_part DROP PARTITION (year=1998);
+
+SELECT year, count(*) FROM orders_part GROUP BY year;
+
+# So if we add the partition back the files are already there
+ALTER TABLE orders_part ADD PARTITION (year=1998);
+
+SELECT year, count(*) FROM orders_part GROUP BY year;
+
+# Let's do this again but this time using dynamic partitioning
+drop table orders_part;
+dfs -rm -r /orders_part;
+
+CREATE EXTERNAL TABLE orders_part (
+    orderid smallint,
+    customerid varchar(5),
+    orderdate date)
+PARTITIONED BY(year int)
+STORED AS PARQUET
+LOCATION 'hdfs://localhost:9000/orders_part';
+
+set hive.exec.dynamic.partition.mode=nonstrict;
+set hive.exec.dynamic.partition=true;
+
+INSERT OVERWRITE TABLE orders_part PARTITION (year)
+SELECT orderid, customerid, orderdate, year FROM orders_view;
+
+SELECT year, COUNT(*) FROM orders_part GROUP BY year;
+
+dfs -mv /orders_part/year=1998 /orders1998 ;
+# we moved the file so we get an error when we try to run the SELECT
+SELECT year, COUNT(*) FROM orders_part GROUP BY year;
+
+ALTER TABLE orders_part DROP PARTITION(year=1998);
+
