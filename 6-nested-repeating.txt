@@ -20,11 +20,11 @@ FROM territories GROUP BY regionid;
 DESCRIBE territory_list;
 ! hadoop fs -cat /user/hive/warehouse/northwind.db/territory_list/*
 
-# That's fine for an array of one single column but what about a more complex shape
+# That's fine for an array of one single column but what about a more complex shape?
 SELECT regionid, COLLECT_LIST(NAMED_STRUCT('territoryid', territoryid, 'territoryname', territoryname)) AS territorylist
 FROM territories GROUP BY regionid;
 
-# What if we want the sub lists sorted, we can use a WITH clause and some new commands
+# What if we want the sub-lists sorted? We can use a WITH clause and some new commands.
 WITH tmp AS (
   SELECT * FROM territories DISTRIBUTE BY regionid SORT BY territoryid
 )
@@ -48,9 +48,9 @@ GROUP BY r.regionid, r.regionname;
 
 SELECT * FROM region_territory;
 
-# What if you have this nested repeating struture and want to return it to flat
-# denormalized shape. Since each element of territorylist field is a string
-# the alias territory refers to an individual string field
+# What if you have this nested repeating structure and want to return it to flat
+# denormalized shape? Since each element of territorylist field is a string,
+# the alias territory refers to an individual string field.
 SELECT regionid, territory
 FROM territory_list LATERAL VIEW EXPLODE(territorylist) AS territory;
 
@@ -86,7 +86,7 @@ UNION ALL SELECT 2, 'mary', ARRAY('C++', 'Java', 'Hive');
 INSERT INTO Person 
 SELECT 3, 'han', ARRAY('Java', 'Python', 'Java', 'C++');
 
-# in hive
+# In Hive
 CREATE TABLE Person2(
 PersonID int,
 Name string,
@@ -127,19 +127,19 @@ WITH x AS
 FROM person LATERAL VIEW EXPLODE(skills) AS skill)
 SELECT skill, COUNT(*) AS cnt FROM x GROUP BY skill;
 
-# or use derived table syntax
+# Or use derived table syntax
 SELECT skill, COUNT(*) AS cnt 
 FROM (SELECT personid, name, skill FROM person LATERAL VIEW EXPLODE(skills) AS skill) as x 
 GROUP BY skill;
 
 # Temporary views are cool if you want to reuse a base query several times without
-# having to cut and past the WITH block
+# having to cut and paste the WITH block
 CREATE TEMPORARY VIEW x AS 
 SELECT personid, name, skill 
 FROM person LATERAL VIEW EXPLODE(skills) AS skill;
 SELECT skill, count(*) AS cnt FROM x GROUP BY skill;
 
-# Here's how we'd create a table with a struct
+# Here's how we would create a table with a struct
 CREATE TABLE complex1(
 id int,
 name string,
@@ -148,7 +148,7 @@ location struct<lat:decimal(4,2), lng:decimal(4,2), city:string>
 INSERT INTO table complex1
 select 1, 'joey', NAMED_STRUCT('lat', 25.81, 'lng', -80.19, 'city', 'Miami');
 
-# But usually when we use a struct it's also an array
+# But usually when we use a struct, it's also an array
 CREATE TABLE complex2(
 id int,
 name string,
