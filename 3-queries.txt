@@ -22,11 +22,11 @@ SELECT regionid, COUNT(*) FROM territories GROUP BY regionid;
 # This could also be controlled in the script with the following commands:
 set hive.execution.engine=mr;
 set hive.execution.engine=spark;
-# but for some reason the spark engine isn't working right on this particular 
+# But for some reason the Spark engine isn't working right on this particular 
 # VM when using the Hive CLI, so we can just switch between the two different 
-# CLI windows
+# CLI windows.
 
-# What happens if we put bad data into a folder. Take a look at this file
+# What happens if we put bad data into a folder. Take a look at this file:
 !cat /class/regions2.csv;
 
 LOAD DATA LOCAL INPATH '/class/regions2.csv' INTO TABLE regions;
