@@ -58,7 +58,7 @@ LOCATION 'hdfs://localhost:9000/orders_part';
 
 SHOW PARTITIONS orders_part;
 
-# First we will insert the data into a partition at a time being careful to 
+# First, we will insert the data into a partition at a time being careful to 
 # use a WHERE clause and provide the correct partition to add the data to
 INSERT OVERWRITE TABLE orders_part PARTITION (year = 1996)
 SELECT orderid, customerid, orderdate FROM orders_view WHERE year(orderdate) = 1996;
@@ -69,7 +69,7 @@ SELECT orderid, customerid, orderdate FROM orders_view WHERE year(orderdate) = 1
 INSERT OVERWRITE TABLE orders_part PARTITION (year = 1998)
 SELECT orderid, customerid, orderdate FROM orders_view WHERE year(orderdate) = 1998;
 
-# run this in spark-sql to see how many records we have in each year
+# Run this in spark-sql to see how many records we have in each year
 SELECT year, count(*) FROM orders_part GROUP BY year;
 
 # Now let's drop a partition, but because it's an external table it doesn't
@@ -78,7 +78,7 @@ ALTER TABLE orders_part DROP PARTITION (year=1998);
 
 SELECT year, count(*) FROM orders_part GROUP BY year;
 
-# So if we add the partition back the files are already there
+# So, if we add the partition back, the files are already there
 ALTER TABLE orders_part ADD PARTITION (year=1998);
 
 SELECT year, count(*) FROM orders_part GROUP BY year;
