@@ -1,4 +1,4 @@
-# How about other file formats. Use the Hive CLI and make sure to be in northwind
+# How about other file formats. Use the Hive CLI and make sure to be in northwind.
 CREATE TABLE usstates
 (stateid int
 ,statename string
@@ -25,7 +25,7 @@ LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/usstates' OVERWRITE INTO 
 SELECT * FROM usstates2;
 
 # So if you put a column name that doesn't match to what's in the interal schema 
-# of the file it doesn't match
+# of the file, it doesn't match
 CREATE TABLE shippers
 (shipperid int
 ,company string
@@ -37,7 +37,7 @@ LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/shippers' OVERWRITE INTO 
 
 SELECT * FROM shippers;
 
-# Let's drop it and create it properly. 
+# Let's drop it and create it properly 
 DROP TABLE shippers;
 
 CREATE EXTERNAL TABLE shippers
@@ -51,8 +51,8 @@ LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/shippers' OVERWRITE INTO 
 
 SELECT * FROM shippers;
 
-# Parquet format is similar, except the data is stored as columns instead of rows
-# sometimes this is more efficient.
+# Parquet format is similar, except the data is stored as columns instead of rows.
+# Sometimes this is more efficient.
 CREATE TABLE categories
 (categoryid int
 ,categoryname string
@@ -88,7 +88,7 @@ SELECT * FROM shippers;
 dfs -cat /shippers2/* ;
 
 # But what if we want the results of a query but don't want the metadata saved
-# in the Hive metastore
+# in the Hive metastore?
 INSERT OVERWRITE DIRECTORY '/shippers3' 
 SELECT * FROM shippers;
 
@@ -125,7 +125,7 @@ INSERT INTO shippers6 SELECT * FROM shippers;
 dfs -cat /shippers6/* ;
 
 # JSON is a bit trickier in Hive. We must load an external library and
-# use an awkward SerDe name
+# use an awkward SerDe name.
 ADD JAR /usr/local/hive/hcatalog/share/hcatalog/hive-hcatalog-core.jar;
 
 CREATE EXTERNAL TABLE regions_json
@@ -143,19 +143,19 @@ CREATE VIEW regions_json2 AS SELECT regionid, regiondescription AS regionname FR
 
 select * from regions_json2;
 
-# To just export a result to JSON use INSERT OVERWRITE DIRECTORY with some specs
+# To just export a result to JSON, use INSERT OVERWRITE DIRECTORY with some specs
 INSERT OVERWRITE LOCAL DIRECTORY '/tmp/territories6'
 ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
 SELECT territoryid, territoryname FROM territories WHERE regionid = 1;
 
 ! cat /tmp/territories6/* ;
-# but the key names are off, this doesn't work well here but in pyspark it's
+# But the key names are off, this doesn't work well here but in pyspark it's
 
-# Unfortunately JSON tables defined in the Hive catalog don't work in spark sql,
-# so JSON isn't a good format to use for long term storage for a lot of reasons.
-# However, we can still use JSON in spark sql, it's just different syntax
+# Unfortunately, JSON tables defined in the Hive catalog don't work in spark sql,
+# so JSON isn't a good format to use for long-term storage for a lot of reasons.
+# However, we can still use JSON in spark sql, it's just different syntax.
 # Note we don't even need to give it a schema when we do this. Spark is smart
-# enough to dynamically infer the schema
+# enough to dynamically infer the schema.
 CREATE TEMPORARY VIEW regions_json3
 USING org.apache.spark.sql.json
 OPTIONS (
@@ -168,13 +168,13 @@ INSERT OVERWRITE LOCAL DIRECTORY '/tmp/regions_json'
 USING org.apache.spark.sql.json
 SELECT * FROM regions_json3;
 
-# run in terminal not spark-sql
+# Run in terminal not spark-sql
 cat /tmp/regions_json
 
 # We can do the same for Parquet. Note here the parquet file we stored has the 
 # description column we ignored when we made the table earlier, but the dynamic
 # schema resolution detected it because we used TEMPORARY VIEW instead of making
-# a table
+# a table.
 CREATE TEMPORARY VIEW categories0
 USING org.apache.spark.sql.parquet
 OPTIONS (
@@ -192,13 +192,13 @@ OPTIONS (
 
 SELECT * FROM products0;
 
-# AVRO has to be weird here and we can't use it directly in the spark-sql CLI
+# AVRO has to be weird here and we can't use it directly in the spark-sql CLI,
 # but when we look at pyspark we will see it's still usable
 
 
 # Here's a trick for only reading the columns we want from CSV format.
 # Create a table to map up to the last column we want, we can use a fake name
-# for columns we don't want
+# for columns we don't want.
 CREATE TABLE products3(
   productid int,
   productname string,
@@ -210,7 +210,7 @@ CREATE TABLE products3(
 ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
 LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSV/products' overwrite into table products3;
 
-# Then we can create a view to fix it up and ignore rows and columns we don't want
+# Then, we can create a view to fix it up and ignore rows and columns we don't want
 CREATE VIEW products4 AS SELECT productid, productname, categoryid, price FROM products3 WHERE productid IS NOT NULL;
 
 SELECT * FROM products4;
