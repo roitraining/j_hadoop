@@ -149,7 +149,7 @@ ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
 SELECT territoryid, territoryname FROM territories WHERE regionid = 1;
 
 ! cat /tmp/territories6/* ;
-# But the key names are off, this doesn't work well here but in pyspark it's
+# But the key names are off, this doesn't work well here but in pyspark it's fine
 
 # Unfortunately, JSON tables defined in the Hive catalog don't work in spark sql,
 # so JSON isn't a good format to use for long-term storage for a lot of reasons.
