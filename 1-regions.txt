@@ -95,3 +95,4 @@ DROP TABLE regions2;
 CREATE VIEW regions1 AS SELECT * FROM regions WHERE regionid IS NOT NULL AND regionname IS NOT NULL;
 
 SELECT * FROM regions1;
+

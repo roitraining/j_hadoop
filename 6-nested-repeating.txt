@@ -179,3 +179,4 @@ from complex3;
 select id, name, collect_list(named_struct('lat', lat, 'lng', lng, 'city', city)) as locations
 from complex3
 group by id, name;
+

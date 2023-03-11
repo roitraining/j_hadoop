@@ -214,3 +214,4 @@ LOAD DATA LOCAL INPATH '/class/datasets/northwind/CSV/products' overwrite into t
 CREATE VIEW products4 AS SELECT productid, productname, categoryid, price FROM products3 WHERE productid IS NOT NULL;
 
 SELECT * FROM products4;
+

@@ -109,3 +109,4 @@ SELECT year, COUNT(*) FROM orders_part GROUP BY year;
 
 ALTER TABLE orders_part DROP PARTITION(year=1998);
 
+

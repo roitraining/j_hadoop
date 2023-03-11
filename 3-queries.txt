@@ -39,3 +39,4 @@ SELECT * FROM regions;
 # row 9 didn't even have a comma so it has NULL for the regionname
 # row 10 the first column would not parse to int so NULL was returned
 # row 11 is a phantom row from the final \n at the end of the file
+
