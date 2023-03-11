@@ -36,7 +36,7 @@ dfs -ls /user/hive/warehouse/regions ;
 SELECT * FROM regions;
 
 # Let's put data into the folder
-! hadoop fs -put /class/datasets/northwind/CSV/regions/* /user/hive/warehouse/regions ;
+! hadoop fs -put /class/datasets/northwind/CSV/regions/regions.csv /user/hive/warehouse/regions ;
 
 # Select from it and now there's data
 SELECT * FROM regions;
