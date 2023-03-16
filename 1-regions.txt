@@ -62,6 +62,10 @@ use northwind;
 CREATE TABLE regions(regionid int, regionname string)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' ;
 
+CREATE TABLE regions(regionid int, regionname string)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
+LOCATION '/regions';
+
 # Confirm the new folder structure
 dfs -ls /user/hive/warehouse ;
 
@@ -80,7 +84,7 @@ SELECT * FROM regions WHERE regionid IS NOT NULL;
 # Sometimes people prefer to use TBLPROPERTIES
 CREATE EXTERNAL TABLE regions2(regionid int, regionname string)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
-LOCATION '/user/hive/warehouse/classroom.db/regions'
+LOCATION '/user/hive/warehouse/northwind.db/regions'
 TBLPROPERTIES("skip.header.line.count"="1");
 
 SELECT * FROM regions2;

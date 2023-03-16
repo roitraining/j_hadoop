@@ -13,14 +13,15 @@ SELECT * FROM usstates;
 
 # We could ignore fields we don't want. AVRO uses the field names inside the inferSchema
 # in the file header to determine what to match to your table definition
-CREATE TABLE usstates2
+CREATE EXTERNAL TABLE usstates2
 (state_id int
 ,stateabbr string
 ,statename string
 )
-STORED AS AVRO;
+STORED AS AVRO
+LOCATION '/user/hive/warehouse/northwind.db/usstates';
 
-LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/usstates' OVERWRITE INTO TABLE usstates2;
+#LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/usstates' OVERWRITE INTO TABLE usstates2;
 
 SELECT * FROM usstates2;
 
@@ -45,7 +46,8 @@ CREATE EXTERNAL TABLE shippers
 ,companyname string
 ,phone string
 )
-STORED AS AVRO;
+STORED AS AVRO
+LOCATION '/shippers';
 
 LOAD DATA LOCAL INPATH '/class/datasets/northwind/AVRO/shippers' OVERWRITE INTO TABLE shippers;
 
@@ -144,6 +146,10 @@ CREATE VIEW regions_json2 AS SELECT regionid, regiondescription AS regionname FR
 select * from regions_json2;
 
 # To just export a result to JSON, use INSERT OVERWRITE DIRECTORY with some specs
+INSERT OVERWRITE LOCAL DIRECTORY '/tmp/territories5'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ':' 
+SELECT territoryid, territoryname FROM territories WHERE regionid = 1;
+
 INSERT OVERWRITE LOCAL DIRECTORY '/tmp/territories6'
 ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
 SELECT territoryid, territoryname FROM territories WHERE regionid = 1;
