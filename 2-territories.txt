@@ -1,5 +1,5 @@
 CREATE TABLE territories(
-territoryid string,
+territoryid int,
 territoryname string,
 regionid int)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t';
