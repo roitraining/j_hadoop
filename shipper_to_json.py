@@ -6,7 +6,6 @@ from pyspark.sql.types import *
 
 sc = SparkContext()
 spark = (SparkSession.builder.appName('notebook') 
-    .setMaster('local')
     .enableHiveSupport().getOrCreate()
     )
 
